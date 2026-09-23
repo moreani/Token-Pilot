@@ -1,0 +1,63 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Production & Build outputs
+dist/
+build/
+out/
+.turbo/
+.next/
+*.tsbuildinfo
+
+# Tauri / Rust outputs
+src-tauri/target/
+**/src-tauri/target/
+
+# Logs & Debug
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Environment and sensitive keys / credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.cert
+*.crt
+*.pfx
+
+# SQLite Local Databases & Runtime storage
+*.db
+*.sqlite
+*.sqlite3
+data/
+*.local
+
+# Vendor / External tools checkout with nested git / venvs
+vendor/
+.venv/
+__pycache__/
+*.pyc
+
+# Local OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+# Test outputs, media & private screenshots
+screenshots/
+coverage/
+playwright-report/
+test-results/
