@@ -4,8 +4,12 @@ import { useState, useEffect } from 'react';
  * useCountdown — live ticking countdown to a target ISO date string.
  * Updates every second. Returns a formatted string like "4h 17m 42s"
  * or null if resetsAt is null/past.
+ * When countdown reaches 0, triggers optional onExpired callback.
  */
-export function useCountdown(resetsAt: string | null | undefined): string | null {
+export function useCountdown(
+  resetsAt: string | null | undefined,
+  onExpired?: () => void
+): string | null {
   const [label, setLabel] = useState<string | null>(null);
 
   useEffect(() => {
@@ -14,10 +18,16 @@ export function useCountdown(resetsAt: string | null | undefined): string | null
       return;
     }
 
+    let firedExpired = false;
+
     const compute = () => {
       const diff = new Date(resetsAt).getTime() - Date.now();
       if (diff <= 0) {
         setLabel(null);
+        if (!firedExpired && onExpired) {
+          firedExpired = true;
+          onExpired();
+        }
         return;
       }
       const totalSecs = Math.floor(diff / 1000);
@@ -38,7 +48,8 @@ export function useCountdown(resetsAt: string | null | undefined): string | null
     compute();
     const id = setInterval(compute, 1000);
     return () => clearInterval(id);
-  }, [resetsAt]);
+  }, [resetsAt, onExpired]);
 
   return label;
 }
+

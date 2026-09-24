@@ -10,7 +10,9 @@ interface QuotaCardProps {
   snapshot?: AccountQuotaSnapshot;
   onSelectForJob: (account: Account) => void;
   onUpdateAlias: (accountId: string, newAlias: string) => void;
+  onRefresh?: () => void;
 }
+
 
 const ProgressRing: React.FC<{ percentage: number; size?: number; strokeWidth?: number }> = ({
   percentage,
@@ -53,7 +55,8 @@ export const QuotaCard: React.FC<QuotaCardProps> = ({
   provider,
   snapshot,
   onSelectForJob,
-  onUpdateAlias
+  onUpdateAlias,
+  onRefresh
 }) => {
   const [isEditingAlias, setIsEditingAlias] = useState(false);
   const [aliasInput, setAliasInput] = useState(account.displayAlias);
@@ -66,8 +69,9 @@ export const QuotaCard: React.FC<QuotaCardProps> = ({
     ? Math.round(primaryWindow.remainingFraction * 100)
     : null;
 
-  // Live countdown to reset time
-  const countdown = useCountdown(primaryWindow?.resetsAt);
+  // Live countdown to reset time with auto-refresh on 0:00 expiry
+  const countdown = useCountdown(primaryWindow?.resetsAt, onRefresh);
+
 
   const rangerTier = remainingPercent !== null ? getQuotaRangeTier(remainingPercent) : null;
   const isBurn = snapshot?.recommendation === 'burn';

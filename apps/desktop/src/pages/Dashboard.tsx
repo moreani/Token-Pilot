@@ -271,7 +271,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
                       snapshot={snapshot}
                       onSelectForJob={onSelectAccountForJob}
                       onUpdateAlias={onUpdateAlias}
+                      onRefresh={handleRefresh}
                     />
+
                   </div>
                 );
               })}

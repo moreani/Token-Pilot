@@ -134,17 +134,18 @@ export function fetchWarpAccountsQuota(): WarpAccountQuota[] {
     // Fallback to sqlite3 CLI (safe & read-only)
     if (!readViaNative) {
       try {
+        const uri = `file:${encodeURI(dbPath)}?mode=ro&immutable=1`;
         const rawProfiles = execSync(
-          `sqlite3 "${dbPath}" "SELECT json_group_array(json_object('email', email, 'display_name', display_name, 'photo_url', photo_url)) FROM user_profiles;"`,
-          { encoding: 'utf8' }
+          `sqlite3 "${uri}" "SELECT json_group_array(json_object('email', email, 'display_name', display_name, 'photo_url', photo_url)) FROM user_profiles;"`,
+          { encoding: 'utf8', timeout: 3000 }
         ).trim();
         if (rawProfiles) {
           profiles = JSON.parse(rawProfiles);
         }
 
         const rawTeams = execSync(
-          `sqlite3 "${dbPath}" "SELECT json_group_array(json_object('id', id, 'name', name, 'billing_metadata_json', billing_metadata_json)) FROM teams;"`,
-          { encoding: 'utf8' }
+          `sqlite3 "${uri}" "SELECT json_group_array(json_object('id', id, 'name', name, 'billing_metadata_json', billing_metadata_json)) FROM teams;"`,
+          { encoding: 'utf8', timeout: 3000 }
         ).trim();
         if (rawTeams) {
           teams = JSON.parse(rawTeams);
@@ -152,8 +153,8 @@ export function fetchWarpAccountsQuota(): WarpAccountQuota[] {
 
         try {
           const rawQuotaRow = execSync(
-            `sqlite3 "${dbPath}" "SELECT data FROM generic_string_objects WHERE data LIKE '%AIRequestQuotaInfoSetting%' LIMIT 1;"`,
-            { encoding: 'utf8' }
+            `sqlite3 "${uri}" "SELECT data FROM generic_string_objects WHERE data LIKE '%AIRequestQuotaInfoSetting%' LIMIT 1;"`,
+            { encoding: 'utf8', timeout: 3000 }
           ).trim();
           if (rawQuotaRow) {
             const parsed = JSON.parse(rawQuotaRow);

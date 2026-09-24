@@ -99,10 +99,30 @@ function formatWeeklyResetLabel(d: Date): string {
  */
 function detectPlan(samples: PlanSample[]): { plan: string; fhLimit: number; sdLimit: number } {
   const maxFh = Math.max(...samples.map((s) => s.u.fh ?? 0));
-  if (maxFh > 100) return { plan: 'Max 5x', fhLimit: 500, sdLimit: 100 };
-  if (maxFh > 20)  return { plan: 'Max',    fhLimit: 100, sdLimit: 20 };
-  return                      { plan: 'Pro',    fhLimit: 20,  sdLimit: 10 };
+  const maxSd = Math.max(...samples.map((s) => s.u.sd ?? 0));
+
+  let plan = 'Pro';
+  let baseFh = 20;
+  let baseSd = 10;
+
+  if (maxFh > 100) {
+    plan = 'Max 5x';
+    baseFh = 500;
+    baseSd = 100;
+  } else if (maxFh > 20) {
+    plan = 'Max';
+    baseFh = 100;
+    baseSd = 20;
+  }
+
+  // Dynamic resilience: If user usage reaches or exceeds estimated baseline, dynamically bump
+  // the ceiling by 20% to prevent negative remaining quota / overflows
+  const fhLimit = Math.max(baseFh, Math.ceil(maxFh * 1.15));
+  const sdLimit = Math.max(baseSd, Math.ceil(maxSd * 1.15));
+
+  return { plan, fhLimit, sdLimit };
 }
+
 
 /**
  * Find when the current 5-hour fh window started by looking for

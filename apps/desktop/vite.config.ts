@@ -72,12 +72,27 @@ function realQuotaApiPlugin() {
       server.middlewares.use('/api/quota', async (_req: any, res: any) => {
         try {
           let items: any[] = [];
+          const cachePath = path.join(process.env.HOME || '', '.tokenpilot_tokscale_cache.json');
+
           try {
-            const raw = execSync('npx tokscale usage --json', { encoding: 'utf8' });
+            // Protect against CLI hang / network lag with strict 4000ms timeout
+            const raw = execSync('npx tokscale usage --json', { encoding: 'utf8', timeout: 4000 });
             items = JSON.parse(raw);
-          } catch {
-            items = [];
+            if (Array.isArray(items) && items.length > 0) {
+              try {
+                fs.writeFileSync(cachePath, JSON.stringify(items), 'utf8');
+              } catch {}
+            }
+          } catch (tokscaleErr) {
+            console.warn('tokscale CLI call failed or timed out, attempting cache fallback:', tokscaleErr);
+            // Fallback to last known good cached tokscale result so Codex/OpenCode do not disappear
+            try {
+              if (fs.existsSync(cachePath)) {
+                items = JSON.parse(fs.readFileSync(cachePath, 'utf8'));
+              }
+            } catch {}
           }
+
 
           // Fetch all connected Google Antigravity accounts (multi-account)
           const agAccounts = await fetchAllAntigravityAccountsTelemetry();
