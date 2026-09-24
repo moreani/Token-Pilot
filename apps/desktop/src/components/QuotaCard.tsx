@@ -90,13 +90,13 @@ export const QuotaCard: React.FC<QuotaCardProps> = ({
   };
 
   const defaultAntigravityModels = [
-    { id: 'gemini-3.8-flash-medium', name: 'Gemini 3.8 Flash', tier: 'Medium', speed: 'Fast', isFast: true },
-    { id: 'gemini-3.7-flash-medium', name: 'Gemini 3.7 Flash', tier: 'Medium', speed: 'Fast', isFast: true },
-    { id: 'gemini-3.6-flash-medium', name: 'Gemini 3.6 Flash', tier: 'Medium', speed: 'Fast', isFast: true },
-    { id: 'gemini-3.1-pro-low', name: 'Gemini 3.1 Pro', tier: 'Low', speed: 'Standard', isFast: false },
-    { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6', tier: '(Thinking)', speed: 'Reasoning', isFast: false },
-    { id: 'claude-opus-4-6-thinking', name: 'Claude Opus 4.6', tier: '(Thinking)', speed: 'Deep Reasoning', isFast: false },
-    { id: 'gpt-oss-120b-medium', name: 'GPT-OSS 120B', tier: '(Medium)', speed: 'Standard', isFast: false }
+    { id: 'gemini-3.8-flash-medium', name: 'Gemini 3.8 Flash', isFast: true },
+    { id: 'gemini-3.7-flash-medium', name: 'Gemini 3.7 Flash', isFast: true },
+    { id: 'gemini-3.6-flash-medium', name: 'Gemini 3.6 Flash', isFast: true },
+    { id: 'gemini-3.1-pro-low', name: 'Gemini 3.1 Pro', isFast: false },
+    { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6', isFast: false },
+    { id: 'claude-opus-4-6-thinking', name: 'Claude Opus 4.6', isFast: false },
+    { id: 'gpt-oss-120b-medium', name: 'GPT-OSS 120B', isFast: false }
   ];
 
   // Derive human name, email, and distinct initials for clear account recognition
@@ -321,7 +321,7 @@ export const QuotaCard: React.FC<QuotaCardProps> = ({
               <div className="mt-2.5 p-3 rounded-xl bg-slate-50 dark:bg-stone-900/95 border border-slate-200 dark:border-stone-800 text-[var(--text-main)] shadow-inner">
                 {/* Two-Pane Layout matching the Antigravity in-editor UI */}
                 <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
-                  {/* Left Column: Models List */}
+                  {/* Left Column: Models List with live quota badges */}
                   <div className="md:col-span-6 border-b md:border-b-0 md:border-r border-slate-200 dark:border-stone-800 pb-3 md:pb-0 md:pr-3">
                     <div className="heading-500 text-[11px] font-medium uppercase tracking-wider mb-2 text-[var(--text-main)] opacity-70">
                       Model
@@ -329,6 +329,10 @@ export const QuotaCard: React.FC<QuotaCardProps> = ({
                     <div className="space-y-1">
                       {defaultAntigravityModels.map((m) => {
                         const isSelected = selectedModel === m.id;
+                        const liveDetail = snapshot?.modelDetails?.find((d: any) => d.id === m.id);
+                        const modelPct = liveDetail ? liveDetail.percentage : null;
+                        const modelTier = modelPct !== null ? getQuotaRangeTier(modelPct) : null;
+
                         return (
                           <div
                             key={m.id}
@@ -341,7 +345,6 @@ export const QuotaCard: React.FC<QuotaCardProps> = ({
                           >
                             <div className="flex items-center space-x-1.5 truncate">
                               <span className="truncate">{m.name}</span>
-                              <span className="text-[10px] opacity-60">{m.tier}</span>
                               {m.isFast && (
                                 <span className="inline-flex items-center space-x-0.5 text-[9px] px-1 py-0.2 bg-slate-200/80 dark:bg-stone-800 text-[var(--text-main)] rounded border border-slate-300 dark:border-stone-700">
                                   <span>Fast</span>
@@ -349,8 +352,15 @@ export const QuotaCard: React.FC<QuotaCardProps> = ({
                                 </span>
                               )}
                             </div>
-                            <div className="shrink-0 text-slate-400 text-xs">
-                              {isSelected ? <Check className="w-3.5 h-3.5 text-blue-500 dark:text-stone-200" /> : '›'}
+                            <div className="flex items-center space-x-1.5 shrink-0">
+                              {modelPct !== null && modelTier && (
+                                <span className={`font-mono text-[10px] font-medium px-1.5 py-0.5 rounded border ${modelTier.badgeBg} ${modelTier.badgeText} ${modelTier.badgeBorder}`}>
+                                  {modelPct}%
+                                </span>
+                              )}
+                              <div className="text-slate-400 text-xs">
+                                {isSelected ? <Check className="w-3.5 h-3.5 text-blue-500 dark:text-stone-200" /> : '›'}
+                              </div>
                             </div>
                           </div>
                         );
@@ -359,7 +369,38 @@ export const QuotaCard: React.FC<QuotaCardProps> = ({
                   </div>
 
                   {/* Right Column: Exact Limit Breakdown with Ranger Rings */}
-                  <div className="md:col-span-6 space-y-3.5 pl-1">
+                  <div className="md:col-span-6 space-y-3 pl-1">
+                    {/* Selected Model Focus Card */}
+                    {(() => {
+                      const selectedDetail = snapshot?.modelDetails?.find((d: any) => d.id === selectedModel);
+                      if (!selectedDetail) return null;
+                      const tier = getQuotaRangeTier(selectedDetail.percentage);
+                      return (
+                        <div className="p-2.5 rounded-lg bg-white dark:bg-stone-800/80 border border-slate-200 dark:border-stone-700/80 shadow-xs">
+                          <div className="flex items-center justify-between mb-1.5 gap-1">
+                            <span className="heading-500 text-xs font-medium text-[var(--text-main)] truncate" title={selectedDetail.displayName}>
+                              {selectedDetail.displayName}
+                            </span>
+                            <span className={`font-mono text-xs font-semibold px-1.5 py-0.5 rounded border shrink-0 ${tier.badgeBg} ${tier.badgeText} ${tier.badgeBorder}`}>
+                              {selectedDetail.percentage}%
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between text-[11px] paragraph-300 font-light text-[var(--text-main)] opacity-75">
+                            <span>Status</span>
+                            <span className={`font-mono font-medium ${selectedDetail.percentage === 0 ? 'text-rose-600 dark:text-rose-400' : tier.textClass}`}>
+                              {selectedDetail.percentage === 0 ? 'Exhausted' : tier.label}
+                            </span>
+                          </div>
+                          {selectedDetail.resetTime && (
+                            <div className="flex items-center justify-between text-[11px] paragraph-300 font-light text-[var(--text-main)] opacity-75 mt-0.5">
+                              <span>Reset in</span>
+                              <span className="font-mono">{selectedDetail.resetTime}</span>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+
                     {/* Gemini Models Section */}
                     <div>
                       <div className="heading-500 text-xs font-medium text-[var(--text-main)] mb-2">
@@ -368,14 +409,14 @@ export const QuotaCard: React.FC<QuotaCardProps> = ({
                       <div className="space-y-2">
                         {/* Weekly Limit */}
                         {(() => {
-                          const percent = snapshot?.modelGroups?.[0]?.weeklyLimitRemaining ?? 78;
+                          const percent = snapshot?.modelGroups?.[0]?.weeklyLimitRemaining ?? 0;
                           const tier = getQuotaRangeTier(percent);
                           return (
                             <div className="flex items-center justify-between text-xs">
                               <div>
                                 <div className="paragraph-300 font-light text-[var(--text-main)]">Weekly Limit Remaining</div>
                                 <div className="paragraph-300 text-[11px] font-light text-[var(--text-main)] opacity-70">
-                                  {snapshot?.modelGroups?.[0]?.weeklyResetTime || 'Resets in 45m'}
+                                  {snapshot?.modelGroups?.[0]?.weeklyResetTime || 'Standard'}
                                 </div>
                               </div>
                               <div className="flex items-center space-x-2">
@@ -390,14 +431,14 @@ export const QuotaCard: React.FC<QuotaCardProps> = ({
 
                         {/* Five Hour Limit */}
                         {(() => {
-                          const percent = snapshot?.modelGroups?.[0]?.fiveHourLimitRemaining ?? 100;
+                          const percent = snapshot?.modelGroups?.[0]?.fiveHourLimitRemaining ?? 0;
                           const tier = getQuotaRangeTier(percent);
                           return (
                             <div className="flex items-center justify-between text-xs">
                               <div>
                                 <div className="paragraph-300 font-light text-[var(--text-main)]">Five Hour Limit Remaining</div>
                                 <div className="paragraph-300 text-[11px] font-light text-[var(--text-main)] opacity-70">
-                                  {snapshot?.modelGroups?.[0]?.fiveHourResetTime || 'Resets in 4h 54m'}
+                                  {snapshot?.modelGroups?.[0]?.fiveHourResetTime || 'Standard'}
                                 </div>
                               </div>
                               <div className="flex items-center space-x-2">
@@ -412,7 +453,7 @@ export const QuotaCard: React.FC<QuotaCardProps> = ({
                       </div>
                     </div>
 
-                    <div className="border-t border-slate-200 dark:border-stone-800 pt-3">
+                    <div className="border-t border-slate-200 dark:border-stone-800 pt-2.5">
                       {/* Claude and GPT Models Section */}
                       <div className="heading-500 text-xs font-medium text-[var(--text-main)] mb-2">
                         Claude and GPT models
@@ -420,14 +461,14 @@ export const QuotaCard: React.FC<QuotaCardProps> = ({
                       <div className="space-y-2">
                         {/* Weekly Limit */}
                         {(() => {
-                          const percent = snapshot?.modelGroups?.[1]?.weeklyLimitRemaining ?? 67;
+                          const percent = snapshot?.modelGroups?.[1]?.weeklyLimitRemaining ?? 0;
                           const tier = getQuotaRangeTier(percent);
                           return (
                             <div className="flex items-center justify-between text-xs">
                               <div>
                                 <div className="paragraph-300 font-light text-[var(--text-main)]">Weekly Limit Remaining</div>
                                 <div className="paragraph-300 text-[11px] font-light text-[var(--text-main)] opacity-70">
-                                  {snapshot?.modelGroups?.[1]?.weeklyResetTime || 'Resets in 6d 5h'}
+                                  {snapshot?.modelGroups?.[1]?.weeklyResetTime || 'Standard'}
                                 </div>
                               </div>
                               <div className="flex items-center space-x-2">
@@ -442,7 +483,7 @@ export const QuotaCard: React.FC<QuotaCardProps> = ({
 
                         {/* Five Hour Limit */}
                         {(() => {
-                          const percent = snapshot?.modelGroups?.[1]?.fiveHourLimitRemaining ?? 100;
+                          const percent = snapshot?.modelGroups?.[1]?.fiveHourLimitRemaining ?? 0;
                           const tier = getQuotaRangeTier(percent);
                           return (
                             <div className="flex items-center justify-between text-xs">

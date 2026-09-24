@@ -128,6 +128,25 @@ interface StoredAccount {
   name: string;
   accessToken: string;
   refreshToken?: string;
+  cachedQuota?: any;
+}
+
+function decryptAgmString(encStr: string, key: Buffer): string | null {
+  if (!encStr || !encStr.startsWith('agm_enc_v1:')) return null;
+  try {
+    const parts = encStr.slice('agm_enc_v1:'.length).split(':');
+    const iv = Buffer.from(parts[0], 'hex');
+    const authTag = Buffer.from(parts[1], 'hex');
+    const ciphertext = parts[2];
+
+    const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+    decipher.setAuthTag(authTag);
+    let decrypted = decipher.update(ciphertext, 'hex', 'utf8');
+    decrypted += decipher.final('utf8');
+    return decrypted;
+  } catch {
+    return null;
+  }
 }
 
 function getAccountsFromAgmDb(): StoredAccount[] {
@@ -141,34 +160,39 @@ function getAccountsFromAgmDb(): StoredAccount[] {
     const hexKey = fs.readFileSync(mkPath, 'utf8').trim();
     const key = Buffer.from(hexKey, 'hex');
 
-    const rawRows = execSync(`sqlite3 "${dbPath}" "SELECT id, email, name, token_json FROM accounts"`, {
+    const rawRows = execSync(`sqlite3 "${dbPath}" -separator "~~~" "SELECT id, email, name, token_json, quota_json FROM accounts"`, {
       encoding: 'utf8'
     });
     const lines = rawRows.trim().split('\n').filter(Boolean);
 
     const accounts: StoredAccount[] = [];
     for (const line of lines) {
-      const [id, email, name, encToken] = line.split('|');
-      if (!encToken || !encToken.startsWith('agm_enc_v1:')) continue;
+      const parts = line.split('~~~');
+      const [id, email, name, encToken, encQuota] = parts;
+      if (!encToken) continue;
+
+      const decryptedTokenStr = decryptAgmString(encToken, key);
+      if (!decryptedTokenStr) continue;
+
+      let cachedQuota: any = undefined;
+      if (encQuota) {
+        const decryptedQuotaStr = decryptAgmString(encQuota, key);
+        if (decryptedQuotaStr) {
+          try {
+            cachedQuota = JSON.parse(decryptedQuotaStr);
+          } catch {}
+        }
+      }
 
       try {
-        const parts = encToken.slice('agm_enc_v1:'.length).split(':');
-        const iv = Buffer.from(parts[0], 'hex');
-        const authTag = Buffer.from(parts[1], 'hex');
-        const ciphertext = parts[2];
-
-        const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
-        decipher.setAuthTag(authTag);
-        let decrypted = decipher.update(ciphertext, 'hex', 'utf8');
-        decrypted += decipher.final('utf8');
-
-        const tokenData = JSON.parse(decrypted);
+        const tokenData = JSON.parse(decryptedTokenStr);
         accounts.push({
           id: id || email,
           email,
           name: name || email.split('@')[0],
           accessToken: tokenData.access_token,
-          refreshToken: tokenData.refresh_token
+          refreshToken: tokenData.refresh_token,
+          cachedQuota
         });
       } catch {
         // decryption error for this record
@@ -257,24 +281,68 @@ export async function fetchAntigravityAccountQuota(acc: StoredAccount): Promise<
     }
   }
 
+  // Fallback to AGM local cached quota if API didn't return models
+  if ((!rawData || !rawData.models || Object.keys(rawData.models).length === 0) && acc.cachedQuota?.models) {
+    const fallbackModels: Record<string, any> = {};
+    for (const [mId, mObj] of Object.entries(acc.cachedQuota.models as Record<string, any>)) {
+      fallbackModels[mId] = {
+        displayName: mObj.display_name || mId,
+        supportsThinking: mObj.supports_thinking,
+        quotaInfo: {
+          remainingFraction: mObj.percentage !== undefined ? mObj.percentage / 100 : 1.0,
+          resetTime: mObj.resetTime
+        }
+      };
+    }
+    rawData = { models: fallbackModels };
+  }
+
   const modelsMap = rawData?.models || {};
 
-  let geminiWeeklyFraction = 0.78;
-  let geminiWeeklyResetIso: string | undefined;
-  let geminiFiveHourFraction = 0.75;
-  let geminiFiveHourResetIso: string | undefined;
+  // Seed baseline fractions from cached quota if present, otherwise default to full
+  let geminiWeeklyFraction = acc.cachedQuota?.models?.['gemini-3.8-flash-medium']?.percentage !== undefined
+    ? acc.cachedQuota.models['gemini-3.8-flash-medium'].percentage / 100
+    : 1.0;
+  let geminiWeeklyResetIso: string | undefined = acc.cachedQuota?.models?.['gemini-3.8-flash-medium']?.resetTime;
 
-  let claudeWeeklyFraction = 0.67;
-  let claudeWeeklyResetIso: string | undefined;
-  let claudeFiveHourFraction = 1.0;
-  let claudeFiveHourResetIso: string | undefined;
+  let geminiFiveHourFraction = acc.cachedQuota?.models?.['gemini-3.1-pro-low']?.percentage !== undefined
+    ? acc.cachedQuota.models['gemini-3.1-pro-low'].percentage / 100
+    : 1.0;
+  let geminiFiveHourResetIso: string | undefined = acc.cachedQuota?.models?.['gemini-3.1-pro-low']?.resetTime;
+
+  let claudeWeeklyFraction = acc.cachedQuota?.models?.['claude-sonnet-4-6']?.percentage !== undefined
+    ? acc.cachedQuota.models['claude-sonnet-4-6'].percentage / 100
+    : 1.0;
+  let claudeWeeklyResetIso: string | undefined = acc.cachedQuota?.models?.['claude-sonnet-4-6']?.resetTime;
+
+  let claudeFiveHourFraction = acc.cachedQuota?.models?.['claude-opus-4-6-thinking']?.percentage !== undefined
+    ? acc.cachedQuota.models['claude-opus-4-6-thinking'].percentage / 100
+    : 1.0;
+  let claudeFiveHourResetIso: string | undefined = acc.cachedQuota?.models?.['claude-opus-4-6-thinking']?.resetTime;
 
   const modelDetails: ModelQuotaDetail[] = [];
 
   for (const [modelId, entry] of Object.entries(modelsMap)) {
-    const fraction = entry.quotaInfo?.remainingFraction ?? 1.0;
+    // In Google Cloud Proto3 JSON serialization, 0 / 0.0 values are omitted!
+    // So if quotaInfo is present but remainingFraction is omitted/undefined, the actual value is 0!
+    let fraction = 1.0;
+    let resetTime = entry.quotaInfo?.resetTime;
+
+    if (entry.quotaInfo) {
+      fraction = entry.quotaInfo.remainingFraction !== undefined
+        ? entry.quotaInfo.remainingFraction
+        : 0;
+    } else if (acc.cachedQuota?.models?.[modelId]) {
+      const cached = acc.cachedQuota.models[modelId];
+      if (cached.percentage !== undefined) {
+        fraction = cached.percentage / 100;
+      }
+      if (!resetTime && cached.resetTime) {
+        resetTime = cached.resetTime;
+      }
+    }
+
     const percentage = Math.round(fraction * 100);
-    const resetTime = entry.quotaInfo?.resetTime;
     const displayName = entry.displayName || modelId;
     const idLower = modelId.toLowerCase();
 
@@ -296,6 +364,11 @@ export async function fetchAntigravityAccountQuota(acc: StoredAccount): Promise<
       } else if (idLower.includes('opus')) {
         claudeFiveHourFraction = fraction;
         claudeFiveHourResetIso = resetTime;
+      } else if (idLower.includes('gpt')) {
+        if (claudeWeeklyFraction === undefined || claudeWeeklyFraction === 1.0) {
+          claudeWeeklyFraction = fraction;
+          claudeWeeklyResetIso = resetTime;
+        }
       }
     }
 
@@ -305,14 +378,14 @@ export async function fetchAntigravityAccountQuota(acc: StoredAccount): Promise<
       family,
       remainingFraction: fraction,
       percentage,
-      resetTime: formatCountdown(resetTime),
+      resetTime: formatCountdown(resetTime, 'Standard'),
       supportsThinking: entry.supportsThinking
     });
   }
 
-  const geminiWeeklyReset = formatCountdown(geminiWeeklyResetIso, '45m');
+  const geminiWeeklyReset = formatCountdown(geminiWeeklyResetIso, '4h 54m');
   const geminiFiveHourReset = formatCountdown(geminiFiveHourResetIso, '4h 54m');
-  const claudeWeeklyReset = formatCountdown(claudeWeeklyResetIso, '6d 5h');
+  const claudeWeeklyReset = formatCountdown(claudeWeeklyResetIso, 'Standard');
   const claudeFiveHourReset = formatCountdown(claudeFiveHourResetIso, 'Standard');
 
   const geminiWeeklyPercent = Math.round(geminiWeeklyFraction * 100);

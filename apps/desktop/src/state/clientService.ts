@@ -257,7 +257,10 @@ export class ClientService {
             }));
 
             const primaryWindow = windows[0];
-            const isBurn = primaryWindow ? primaryWindow.remainingFraction > 0.7 : false;
+            const fractions = windows.map((w: any) => w.remainingFraction).filter((f: any) => typeof f === 'number' && !isNaN(f));
+            const minRemaining = fractions.length > 0 ? Math.min(...fractions) : (primaryWindow?.remainingFraction ?? 1.0);
+            const isConserve = minRemaining <= 0.15;
+            const isBurn = !isConserve && primaryWindow ? primaryWindow.remainingFraction > 0.7 && minRemaining > 0.3 : false;
 
             snapshots.push({
               accountId,
@@ -265,8 +268,10 @@ export class ClientService {
               windows,
               modelGroups: item.model_groups,
               modelDetails: item.models,
-              recommendation: isBurn ? 'burn' : 'on_pace',
-              recommendationReason: isBurn
+              recommendation: isConserve ? 'conserve' : (isBurn ? 'burn' : 'on_pace'),
+              recommendationReason: isConserve
+                ? `Low quota remaining (${Math.round(minRemaining * 100)}% on limited models). Recommendation: conserve.`
+                : isBurn
                 ? `${Math.round((primaryWindow?.remainingFraction ?? 1) * 100)}% quota remaining. Under pace for this window—recommended for productive burn.`
                 : 'Usage is on track for this window.',
               freshness: 'fresh',
