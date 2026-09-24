@@ -7,6 +7,7 @@ import type {
 import type { QuotaDoctorResult, QuotaSource } from './quotaSource.js';
 import { calculateFreshness } from './freshness.js';
 import { fetchAntigravityLiveTelemetry } from './antigravityCollector.js';
+import { fetchWarpAccountsQuota } from './warpCollector.js';
 
 
 interface TokscaleQuotaItem {
@@ -196,6 +197,36 @@ export class RealQuotaSource implements QuotaSource {
       });
     }
 
+    if (!snapshots.some((s) => s.providerId.includes('warp'))) {
+      try {
+        const warpAccounts = fetchWarpAccountsQuota();
+        for (const w of warpAccounts) {
+          snapshots.push({
+            accountId: w.accountId,
+            providerId: 'warp',
+            windows: [
+              {
+                id: `${w.accountId}-window-monthly`,
+                label: `Monthly AI Requests (${w.limit.toLocaleString()} limit)`,
+                usedFraction: w.used / w.limit,
+                remainingFraction: w.remaining / w.limit,
+                resetsAt: null,
+                observedAt: nowIso,
+                source: 'warp-sqlite'
+              }
+            ],
+            recommendation: (w.remaining / w.limit) > 0.7 ? 'burn' : 'on_pace',
+            recommendationReason: `${w.remaining.toLocaleString()} of ${w.limit.toLocaleString()} monthly AI requests remaining (${w.plan}).`,
+            freshness: calculateFreshness(nowIso, now),
+            rawSourceVersion: 'warp-stable',
+            observedAt: nowIso
+          });
+        }
+      } catch (err) {
+        console.warn('Failed to query Warp quota in snapshot:', err);
+      }
+    }
+
     return snapshots;
   }
 
@@ -301,6 +332,36 @@ export class RealQuotaSource implements QuotaSource {
         lastSeenAt: nowIso,
         enabled: true
       });
+    }
+
+    if (!accounts.some((a) => a.providerId === 'warp')) {
+      try {
+        const warpAccounts = fetchWarpAccountsQuota();
+        for (const w of warpAccounts) {
+          accounts.push({
+            id: w.accountId,
+            providerId: 'warp',
+            displayAlias: `${w.name} (${w.email}) • Warp ${w.plan}`,
+            upstreamIdentities: [w.email],
+            photoUrl: w.photoUrl,
+            capabilities: {
+              trackUsage: true,
+              remainingQuota: true,
+              resetTime: true,
+              executeJobs: false,
+              switchAccount: false,
+              directApi: false,
+              cli: true,
+              supportsPaidOverageDetection: false
+            },
+            authStatus: 'ready',
+            lastSeenAt: nowIso,
+            enabled: true
+          });
+        }
+      } catch (err) {
+        console.warn('Failed to collect Warp accounts:', err);
+      }
     }
 
     return accounts;

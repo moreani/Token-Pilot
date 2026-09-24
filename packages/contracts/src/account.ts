@@ -28,4 +28,5 @@ export interface Account {
   authStatus: AuthStatus;
   lastSeenAt: string | null;
   enabled: boolean;
+  photoUrl?: string;
 }

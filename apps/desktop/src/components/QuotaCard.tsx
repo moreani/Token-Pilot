@@ -58,6 +58,7 @@ export const QuotaCard: React.FC<QuotaCardProps> = ({
   const [aliasInput, setAliasInput] = useState(account.displayAlias);
   const [showModelBreakdown, setShowModelBreakdown] = useState(false);
   const [selectedModel, setSelectedModel] = useState('gemini-3.8-flash-medium');
+  const [imgError, setImgError] = useState(false);
 
   const primaryWindow = snapshot?.windows[0];
   const remainingPercent = primaryWindow?.remainingFraction !== null && primaryWindow?.remainingFraction !== undefined
@@ -93,8 +94,9 @@ export const QuotaCard: React.FC<QuotaCardProps> = ({
     ? account.displayAlias.replace(/\s*\([^)]+@.+\)/, '').trim()
     : account.displayAlias;
 
+  const personName = rawDisplayName.includes('•') ? rawDisplayName.split('•')[0].trim() : rawDisplayName;
   const initials = (() => {
-    const clean = rawDisplayName.replace(/[^a-zA-Z0-9\s]/g, '').trim();
+    const clean = personName.replace(/[^a-zA-Z0-9\s]/g, '').trim();
     const parts = clean.split(/\s+/).filter(Boolean);
     if (parts.length >= 2) {
       return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
@@ -105,16 +107,34 @@ export const QuotaCard: React.FC<QuotaCardProps> = ({
     return email ? email.slice(0, 2).toUpperCase() : 'AI';
   })();
 
+  const avatarGradient = provider.id === 'warp'
+    ? 'from-emerald-500 to-teal-600 dark:from-emerald-600 dark:to-teal-700'
+    : provider.id === 'codex'
+    ? 'from-violet-500 to-purple-600 dark:from-violet-600 dark:to-purple-700'
+    : provider.id === 'opencode'
+    ? 'from-cyan-500 to-blue-600 dark:from-cyan-600 dark:to-blue-700'
+    : 'from-blue-500 to-indigo-600 dark:from-blue-600 dark:to-indigo-700';
+
   return (
     <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 p-5 flex flex-col justify-between transition-all duration-200 shadow-sm dark:shadow-md">
       <div>
         {/* Header: Visual Avatar, Provider & Account Identity */}
         <div className="flex items-start justify-between gap-3 mb-4">
           <div className="flex items-start space-x-3 min-w-0">
-            {/* Visual Avatar with account initials */}
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 dark:from-blue-600 dark:to-indigo-700 text-white flex items-center justify-center font-medium text-xs shadow-xs shrink-0 mt-0.5 select-none">
-              {initials}
-            </div>
+            {/* Visual Avatar with account initials or photo */}
+            {account.photoUrl && !imgError ? (
+              <img
+                src={account.photoUrl}
+                alt={initials}
+                className="w-10 h-10 rounded-xl object-cover border border-slate-200 dark:border-slate-700 shadow-xs shrink-0 mt-0.5"
+                referrerPolicy="no-referrer"
+                onError={() => setImgError(true)}
+              />
+            ) : (
+              <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${avatarGradient} text-white flex items-center justify-center font-medium text-xs shadow-xs shrink-0 mt-0.5 select-none`}>
+                {initials}
+              </div>
+            )}
 
             <div className="min-w-0">
               <div className="flex items-center space-x-2">
@@ -436,7 +456,7 @@ export const QuotaCard: React.FC<QuotaCardProps> = ({
                       <span className={`w-1.5 h-1.5 rounded-full ${winTier.dotColor}`}></span>
                     )}
                     <span className="font-mono font-medium text-[var(--text-main)]">
-                      {winPercent !== null ? `${winPercent}% left` : 'Active'}
+                      {(win as any).remainingLabel ? (win as any).remainingLabel : winPercent !== null ? `${winPercent}% left` : 'Active'}
                     </span>
                   </div>
                 </div>
@@ -446,14 +466,20 @@ export const QuotaCard: React.FC<QuotaCardProps> = ({
         )}
 
         {/* Reset Countdown */}
-        {primaryWindow?.resetsAt && (
+        {(primaryWindow?.resetsAt || (primaryWindow as any)?.resetLabel) && (
           <div className="flex items-center space-x-1.5 text-xs mb-4">
             <Clock className="w-3.5 h-3.5 text-slate-400" />
             <span className="paragraph-300 font-light text-[var(--text-main)]">
-              Resets in{' '}
-              <strong className="font-medium text-[var(--text-main)] font-mono">
-                {Math.max(1, Math.round((new Date(primaryWindow.resetsAt).getTime() - Date.now()) / (1000 * 3600)))}h
-              </strong>
+              {(primaryWindow as any)?.resetLabel ? (
+                <span className="font-medium text-[var(--text-main)] font-mono">{(primaryWindow as any).resetLabel}</span>
+              ) : (
+                <>
+                  Resets in{' '}
+                  <strong className="font-medium text-[var(--text-main)] font-mono">
+                    {Math.max(1, Math.round((new Date(primaryWindow!.resetsAt!).getTime() - Date.now()) / (1000 * 3600)))}h
+                  </strong>
+                </>
+              )}
             </span>
           </div>
         )}

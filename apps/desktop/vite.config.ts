@@ -2,7 +2,7 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { execSync } from 'node:child_process';
-import { fetchAllAntigravityAccountsTelemetry } from '@tokenpilot/quota/node';
+import { fetchAllAntigravityAccountsTelemetry, fetchWarpAccountsQuota } from '@tokenpilot/quota/node';
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -169,6 +169,46 @@ function realQuotaApiPlugin() {
               model_groups: acc.modelGroups,
               models: acc.modelDetails
             });
+          }
+
+          // Fetch connected Warp AI accounts
+          try {
+            const warpAccounts = fetchWarpAccountsQuota();
+            for (const acc of warpAccounts) {
+              const displayTitle = `${acc.name} (${acc.email}) • Warp ${acc.plan}`;
+              items.push({
+                provider: 'warp',
+                account: acc.email,
+                email: acc.email,
+                name: acc.name,
+                plan: `Warp ${acc.plan}`,
+                display_name: displayTitle,
+                photo_url: acc.photoUrl,
+                metrics: [
+                  {
+                    label: 'Monthly AI Requests',
+                    used_percent: Math.round((acc.used / acc.limit) * 100),
+                    remaining_percent: Math.round((acc.remaining / acc.limit) * 100),
+                    remaining_label: `${acc.remaining.toLocaleString()} left`,
+                    resets_at: null,
+                    reset_label: 'Resets monthly'
+                  }
+                ],
+                windows: [
+                  {
+                    id: `${acc.accountId}-window-monthly`,
+                    label: `Monthly AI Requests (${acc.limit.toLocaleString()}/mo)`,
+                    used_percent: Math.round((acc.used / acc.limit) * 100),
+                    remaining_percent: Math.round((acc.remaining / acc.limit) * 100),
+                    remaining_label: `${acc.remaining.toLocaleString()} left`,
+                    resets_at: null,
+                    reset_label: 'Resets monthly'
+                  }
+                ]
+              });
+            }
+          } catch (warpErr) {
+            console.warn('Failed to collect Warp accounts in dev server:', warpErr);
           }
 
           res.setHeader('Content-Type', 'application/json');

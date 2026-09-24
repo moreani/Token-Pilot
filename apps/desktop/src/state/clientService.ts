@@ -119,6 +119,22 @@ export class ClientService {
           cli: false,
           supportsPaidOverageDetection: false
         }
+      },
+      {
+        id: 'warp',
+        displayName: 'Warp AI',
+        iconKey: 'warp',
+        enabled: true,
+        capabilities: {
+          trackUsage: true,
+          remainingQuota: true,
+          resetTime: true,
+          executeJobs: false,
+          switchAccount: false,
+          directApi: false,
+          cli: true,
+          supportsPaidOverageDetection: false
+        }
       }
     ],
     accounts: [],
@@ -158,6 +174,8 @@ export class ClientService {
               ? 'opencode'
               : item.provider.toLowerCase().includes('antigravity')
               ? 'antigravity'
+              : item.provider.toLowerCase().includes('warp')
+              ? 'warp'
               : item.provider.toLowerCase().replace(/\s+/g, '-');
 
             const email = item.email || item.account || '';
@@ -196,13 +214,14 @@ export class ClientService {
               providerId,
               displayAlias,
               upstreamIdentities: email ? [email] : [plan],
+              photoUrl: item.photo_url || undefined,
               capabilities: {
                 trackUsage: true,
                 remainingQuota: true,
                 resetTime: true,
-                executeJobs: true,
-                switchAccount: true,
-                directApi: providerId !== 'antigravity',
+                executeJobs: providerId !== 'warp' && providerId !== 'cursor',
+                switchAccount: providerId === 'antigravity' || providerId === 'claude' || providerId === 'codex',
+                directApi: providerId !== 'antigravity' && providerId !== 'warp',
                 cli: true,
                 supportsPaidOverageDetection: providerId === 'codex'
               },
@@ -263,6 +282,26 @@ export class ClientService {
                 directApi: true,
                 cli: true,
                 supportsPaidOverageDetection: true
+              }
+            });
+          }
+
+          // Ensure providers list has warp
+          if (!this.state.providers.some((p) => p.id === 'warp')) {
+            this.state.providers.push({
+              id: 'warp',
+              displayName: 'Warp AI',
+              iconKey: 'warp',
+              enabled: true,
+              capabilities: {
+                trackUsage: true,
+                remainingQuota: true,
+                resetTime: true,
+                executeJobs: false,
+                switchAccount: false,
+                directApi: false,
+                cli: true,
+                supportsPaidOverageDetection: false
               }
             });
           }
