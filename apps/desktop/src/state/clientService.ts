@@ -1,8 +1,10 @@
 import type {
   Account,
+  AccountPoolItem,
   AccountQuotaSnapshot,
   AuditEvent,
   ExecutionIntent,
+  FailoverEvent,
   Job,
   JobResult,
   Provider,
@@ -400,6 +402,7 @@ export class ClientService {
     generateFixes: boolean;
     providerId: string;
     accountId: string;
+    accountPool?: AccountPoolItem[];
   }): Job {
     const id = 'job-' + Date.now().toString(36);
     const now = new Date().toISOString();
@@ -414,14 +417,35 @@ export class ClientService {
 
     const permissions = this.repoLabTemplate.requiredPermissions(spec);
 
+    // Initial accountPool initialization
+    const pool: AccountPoolItem[] = params.accountPool && params.accountPool.length > 0
+      ? params.accountPool.map((item, idx) => ({
+          ...item,
+          priority: idx + 1,
+          status: idx === 0 ? 'active' : 'standby'
+        }))
+      : [
+          {
+            accountId: params.accountId,
+            providerId: params.providerId,
+            displayAlias: this.state.accounts.find((a) => a.id === params.accountId)?.displayAlias || params.accountId,
+            priority: 1,
+            status: 'active'
+          }
+        ];
+
+    const activeItem = pool[0];
+
     const job: Job = {
       id,
       type: 'repo_lab',
       name: `Repo Lab: ${params.repoUrl.replace('https://github.com/', '')}`,
       objective: params.objective,
       state: 'DRAFT',
-      providerId: params.providerId,
-      accountId: params.accountId,
+      providerId: activeItem.providerId,
+      accountId: activeItem.accountId,
+      accountPool: pool,
+      failoverHistory: [],
       securityProfileId: 'balanced_sandbox',
       spec,
       permissions,
@@ -434,7 +458,11 @@ export class ClientService {
 
     this.state.jobs.unshift(job);
     this.state.activeJobId = job.id;
-    this.logAudit('JOB_CREATED', `Job created: ${job.name}`, 'info', { jobId: job.id });
+    this.logAudit('JOB_CREATED', `Job created: ${job.name}`, 'info', {
+      jobId: job.id,
+      poolSize: pool.length,
+      primaryAccount: activeItem.accountId
+    });
     this.notify();
     return job;
   }
@@ -444,6 +472,11 @@ export class ClientService {
     if (!job) throw new Error('Job not found');
 
     const validation = this.repoLabTemplate.validate(job.spec as any);
+    const pool = job.accountPool || [];
+    const poolDisplay = pool.length > 1
+      ? `${pool.length} Accounts in Failover Cascade (${pool.map((p) => p.displayAlias || p.accountId).join(' → ')})`
+      : `Assigned account: ${job.accountId}`;
+
     const checks = [
       {
         name: 'GitHub Repository Validation',
@@ -461,9 +494,9 @@ export class ClientService {
         message: 'Host filesystem and Docker socket disabled'
       },
       {
-        name: 'Account & Quota Status',
-        ok: !!job.accountId,
-        message: `Assigned account: ${job.accountId}`
+        name: 'Account & Quota Failover Pool',
+        ok: !!job.accountId && pool.length > 0,
+        message: poolDisplay
       }
     ];
 
@@ -519,17 +552,22 @@ export class ClientService {
     onLog('[Sandbox] Dropping root privileges: UID 1000, GID 1000');
     onLog('[Sandbox] Read-only root filesystem mounted; /workspace mounted with tmpfs');
     this.notify();
-    await new Promise((r) => setTimeout(r, 1200));
+    await new Promise((r) => setTimeout(r, 1000));
 
     // 2. Sandbox Ready
     job.state = 'SANDBOX_READY';
     onLog('[Sandbox] Isolation self-check passed. No host directories mounted.');
     this.notify();
-    await new Promise((r) => setTimeout(r, 800));
+    await new Promise((r) => setTimeout(r, 700));
 
     // 3. Starting Agent
     job.state = 'STARTING_AGENT';
-    onLog(`[Runner] Launching agent runner with account: ${job.accountId}`);
+    const pool = job.accountPool || [];
+    const activeAccName = pool.find((p) => p.status === 'active')?.displayAlias || job.accountId;
+    onLog(`[Runner] Launching agent runner with primary account: ${activeAccName}`);
+    if (pool.length > 1) {
+      onLog(`[Runner] Cascading failover pool registered with ${pool.length} accounts.`);
+    }
     onLog('[Runner] Establishing provider CLI bridge...');
     this.notify();
     await new Promise((r) => setTimeout(r, 800));
@@ -543,13 +581,54 @@ export class ClientService {
     this.notify();
 
     onLog(`[Exec] git clone ${(job.spec as any).repoUrl} /workspace/project`);
-    await new Promise((r) => setTimeout(r, 1000));
+    await new Promise((r) => setTimeout(r, 900));
     onLog('[Exec] Analyzing repository structure and AST...');
-    await new Promise((r) => setTimeout(r, 1200));
+    await new Promise((r) => setTimeout(r, 1100));
+
+    // Check if we have multiple accounts in the pool to demonstrate real failover
+    if (pool.length > 1) {
+      const currentActiveIndex = pool.findIndex((p) => p.status === 'active');
+      if (currentActiveIndex >= 0 && currentActiveIndex < pool.length - 1) {
+        const exhaustedItem = pool[currentActiveIndex];
+        const nextItem = pool[currentActiveIndex + 1];
+
+        // Simulate quota depletion / rate limit on primary
+        onLog(`[Quota] Checking usage velocity on account: ${exhaustedItem.displayAlias || exhaustedItem.accountId}...`);
+        await new Promise((r) => setTimeout(r, 800));
+        onLog(`[Quota Alert] ⚠️ Rate limit / quota window threshold reached for ${exhaustedItem.displayAlias || exhaustedItem.accountId}!`);
+        await new Promise((r) => setTimeout(r, 600));
+
+        // Perform Failover
+        exhaustedItem.status = 'exhausted';
+        nextItem.status = 'active';
+        job.accountId = nextItem.accountId;
+        job.providerId = nextItem.providerId;
+
+        const failoverEvent: FailoverEvent = {
+          fromAccountId: exhaustedItem.accountId,
+          toAccountId: nextItem.accountId,
+          reason: 'Primary quota limit reached / 429 rate limit detected',
+          timestamp: new Date().toISOString()
+        };
+        job.failoverHistory = job.failoverHistory || [];
+        job.failoverHistory.push(failoverEvent);
+
+        this.logAudit('JOB_FAILOVER', `Dynamic failover: ${exhaustedItem.accountId} → ${nextItem.accountId}`, 'warn', {
+          jobId,
+          ...failoverEvent
+        });
+        this.notify();
+
+        onLog(`[Failover] 🔄 Seamlessly transferring active context to backup account: ${nextItem.displayAlias || nextItem.accountId}`);
+        onLog(`[Failover] Provider bridge switched to ${nextItem.providerId.toUpperCase()}. Execution resumed without loss of state.`);
+        await new Promise((r) => setTimeout(r, 1000));
+      }
+    }
+
     onLog(`[Exec] Objective evaluation: "${job.objective}"`);
-    await new Promise((r) => setTimeout(r, 1500));
+    await new Promise((r) => setTimeout(r, 1200));
     onLog('[Exec] Running static security analysis and test runner...');
-    await new Promise((r) => setTimeout(r, 1500));
+    await new Promise((r) => setTimeout(r, 1200));
     onLog('[Exec] Generated audit report and patch artifacts.');
     await new Promise((r) => setTimeout(r, 800));
 
@@ -559,6 +638,7 @@ export class ClientService {
     this.logAudit('JOB_COMPLETED', `Job completed successfully: ${job.name}`, 'info', { jobId });
     this.notify();
   }
+
 
   pauseJob(jobId: string) {
     const job = this.state.jobs.find((j) => j.id === jobId);

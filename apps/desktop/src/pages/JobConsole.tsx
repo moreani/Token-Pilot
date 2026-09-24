@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Terminal, Pause, Play, Square, CheckCircle, Clock, ShieldCheck } from 'lucide-react';
+import { Terminal, Pause, Play, Square, CheckCircle, Clock, ShieldCheck, Layers, RefreshCw, AlertTriangle } from 'lucide-react';
 import type { ClientState } from '../state/clientService.js';
+
 
 interface JobConsoleProps {
   jobId: string;
@@ -69,10 +70,59 @@ export const JobConsole: React.FC<JobConsoleProps> = ({
             </span>
           </div>
           <h2 className="heading-500 text-xl font-medium tracking-tight mt-1 text-[var(--text-main)]">{job.name}</h2>
-          <p className="paragraph-300 text-xs mt-0.5 font-light text-[var(--text-main)] opacity-70">
-            Target Account: <strong className="font-medium text-[var(--text-main)]">{job.accountId}</strong>
-          </p>
+          
+          {/* Active Funding & Failover Status */}
+          <div className="flex items-center flex-wrap gap-2 mt-1">
+            <span className="paragraph-300 text-xs font-light text-[var(--text-main)] opacity-70">
+              Active Funding: <strong className="font-medium text-emerald-600 dark:text-emerald-400 font-mono">{job.accountId}</strong>
+            </span>
+            <span className="text-xs opacity-40">•</span>
+            <span className="text-xs uppercase font-mono px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-[var(--text-main)] font-medium">
+              {job.providerId?.toUpperCase()}
+            </span>
+            {job.failoverHistory && job.failoverHistory.length > 0 && (
+              <span className="flex items-center space-x-1 text-[11px] font-mono px-2 py-0.5 rounded bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/30">
+                <RefreshCw className="w-3 h-3 text-amber-500" />
+                <span>Failover active ({job.failoverHistory.length})</span>
+              </span>
+            )}
+          </div>
+
+          {/* Failover Pool Strip */}
+          {job.accountPool && job.accountPool.length > 1 && (
+            <div className="mt-2.5 flex items-center space-x-2 text-xs overflow-x-auto pb-1">
+              <span className="font-mono text-[10px] uppercase opacity-50 shrink-0">Pool Cascade:</span>
+              <div className="flex items-center space-x-1.5 shrink-0">
+                {job.accountPool.map((p, idx) => {
+                  const isActive = p.status === 'active';
+                  const isExhausted = p.status === 'exhausted';
+                  return (
+                    <React.Fragment key={p.accountId}>
+                      {idx > 0 && <span className="opacity-30 text-[10px]">➔</span>}
+                      <span
+                        className={`px-2 py-0.5 rounded text-[11px] font-mono flex items-center space-x-1 border ${
+                          isActive
+                            ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/40 font-medium'
+                            : isExhausted
+                            ? 'bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/30 line-through opacity-75'
+                            : 'bg-slate-100 dark:bg-slate-800/80 text-[var(--text-main)] opacity-60 border-slate-200 dark:border-slate-700'
+                        }`}
+                        title={p.displayAlias || p.accountId}
+                      >
+                        <span>#{p.priority}</span>
+                        <span className="truncate max-w-[130px]">{p.displayAlias ? p.displayAlias.split('(')[0].trim() : p.accountId}</span>
+                        <span className="text-[9px] uppercase opacity-70">
+                          {isActive ? '(Active)' : isExhausted ? '(Exhausted)' : '(Standby)'}
+                        </span>
+                      </span>
+                    </React.Fragment>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
+
 
         {/* Action Controls */}
         <div className="flex items-center space-x-3">

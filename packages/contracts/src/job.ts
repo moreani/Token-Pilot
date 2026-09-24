@@ -63,6 +63,21 @@ export interface JobPermissions {
   disallowPrivateNetwork: true;
 }
 
+export interface AccountPoolItem {
+  accountId: string;
+  providerId: string;
+  displayAlias?: string;
+  priority: number;
+  status: 'active' | 'exhausted' | 'standby';
+}
+
+export interface FailoverEvent {
+  fromAccountId: string;
+  toAccountId: string;
+  reason: string;
+  timestamp: string;
+}
+
 export interface Job {
   id: string;
   type: JobType;
@@ -71,6 +86,8 @@ export interface Job {
   state: JobState;
   providerId: string | null;
   accountId: string | null;
+  accountPool?: AccountPoolItem[];
+  failoverHistory?: FailoverEvent[];
   securityProfileId: string;
   spec: RepoLabSpec | Record<string, unknown>;
   permissions: JobPermissions;

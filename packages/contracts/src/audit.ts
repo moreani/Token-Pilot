@@ -15,9 +15,11 @@ export type AuditEventType =
   | 'JOB_STOPPED'
   | 'JOB_COMPLETED'
   | 'JOB_FAILED'
+  | 'JOB_FAILOVER'
   | 'SECURITY_VIOLATION'
   | 'ARTIFACTS_EXPORTED'
   | 'SANDBOX_CLEANED';
+
 
 export interface AuditEvent {
   id: string;
