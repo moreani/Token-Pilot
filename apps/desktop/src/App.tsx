@@ -17,6 +17,36 @@ export const App: React.FC = () => {
   const [selectedAccountForJob, setSelectedAccountForJob] = useState<Account | null>(null);
   const [viewingResultJobId, setViewingResultJobId] = useState<string | null>(null);
 
+  // Theme Management (Light & Dark with persistence)
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    try {
+      const saved = localStorage.getItem('tokenpilot_theme');
+      if (saved === 'light' || saved === 'dark') return saved;
+      if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
+        return 'light';
+      }
+    } catch {
+      // fallback
+    }
+    return 'dark';
+  });
+
+  useEffect(() => {
+    try {
+      const root = document.documentElement;
+      root.classList.remove('light', 'dark');
+      root.classList.add(theme);
+      root.setAttribute('data-theme', theme);
+      localStorage.setItem('tokenpilot_theme', theme);
+    } catch {
+      // storage unavailable
+    }
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme((prev) => (prev === 'light' ? 'dark' : 'light'));
+  };
+
   useEffect(() => {
     setState({ ...clientService.getState() });
     const unsubscribe = clientService.subscribe(() => {
@@ -47,11 +77,13 @@ export const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
+    <div className="min-h-screen bg-[var(--bg-primary)] text-[var(--text-main)] flex flex-col font-sans transition-colors duration-200">
       <Navbar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         activeJobId={state.activeJobId}
+        theme={theme}
+        onToggleTheme={toggleTheme}
       />
 
       <main className="flex-1 pb-16">
