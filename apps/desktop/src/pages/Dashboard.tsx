@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { RefreshCw, ShieldCheck, Cpu, HardDrive, Flame, AlertTriangle, Play } from 'lucide-react';
+import { RefreshCw, ShieldCheck, Cpu, HardDrive, Flame, AlertTriangle } from 'lucide-react';
 
 
 import type { Account, ClientState } from '../state/clientService.js';
@@ -186,20 +186,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </p>
         </div>
 
-        <div className="flex items-center space-x-2.5">
-          {onStartJob && (
-            <button
-              onClick={onStartJob}
-              className="flex items-center space-x-2 px-3.5 py-1.5 rounded-lg text-xs font-medium bg-blue-600 hover:bg-blue-700 text-white transition shadow-xs cursor-pointer"
-              title="Launch a new job with failover pool"
-            >
-              <Play className="w-3.5 h-3.5 fill-current" />
-              <span>New Work / Job</span>
-            </button>
-          )}
-
-          {/* Refresh button with last-refreshed label */}
-          <div className="flex flex-col items-end">
+        {/* Refresh button with last-refreshed label */}
+        <div className="flex flex-col items-end">
 
             <button
               onClick={handleRefresh}
@@ -225,7 +213,6 @@ export const Dashboard: React.FC<DashboardProps> = ({
             )}
           </div>
         </div>
-      </div>
 
       {/* Quick Provider Filter Tabs */}
       <div className="flex items-center space-x-2 mb-5 overflow-x-auto pb-1">
