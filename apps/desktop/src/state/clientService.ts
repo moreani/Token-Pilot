@@ -368,10 +368,10 @@ export class ClientService {
     return this.state;
   }
 
-  async refreshQuotas() {
+  async refreshQuotas(): Promise<void> {
     await this.loadRealUsage();
     this.logAudit('QUOTA_REFRESHED', 'Manually refreshed live quota snapshots', 'info');
-    this.notify();
+    // notify() already called inside loadRealUsage — no double-fire needed
   }
 
   updateAccountAlias(accountId: string, newAlias: string) {

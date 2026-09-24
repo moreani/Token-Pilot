@@ -7,7 +7,7 @@ import { QUOTA_RANGES } from '../utils/quotaRanger.js';
 
 interface DashboardProps {
   state: ClientState;
-  onRefreshQuotas: () => void;
+  onRefreshQuotas: () => Promise<void>;
   onUseCredit: () => void;
   onSelectAccountForJob: (account: Account) => void;
   onUpdateAlias: (accountId: string, newAlias: string) => void;
@@ -21,6 +21,18 @@ export const Dashboard: React.FC<DashboardProps> = ({
   onUpdateAlias
 }) => {
   const [providerFilter, setProviderFilter] = useState<'all' | string>('all');
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleRefresh = async () => {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+    try {
+      await onRefreshQuotas();
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
 
   const activeProviders = state.providers.filter((p) =>
     state.accounts.some((a) => a.providerId === p.id)
@@ -110,11 +122,16 @@ export const Dashboard: React.FC<DashboardProps> = ({
         </div>
 
         <button
-          onClick={onRefreshQuotas}
-          className="flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-[var(--text-main)] border border-slate-300 dark:border-slate-700 transition cursor-pointer"
+          onClick={handleRefresh}
+          disabled={isRefreshing}
+          className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs font-medium border transition cursor-pointer ${
+            isRefreshing
+              ? 'bg-slate-100 dark:bg-slate-800 border-slate-300 dark:border-slate-700 opacity-60 cursor-not-allowed'
+              : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border-slate-300 dark:border-slate-700'
+          } text-[var(--text-main)]`}
         >
-          <RefreshCw className="w-3.5 h-3.5" />
-          <span>Refresh Quotas</span>
+          <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+          <span>{isRefreshing ? 'Refreshing…' : 'Refresh Quotas'}</span>
         </button>
       </div>
 
