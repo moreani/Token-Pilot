@@ -110,7 +110,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
       {/* Provider & Account Cards Grid */}
       <div className="space-y-8">
-        {accountsByProvider.map(({ provider, accounts }) => (
+        {accountsByProvider.filter(({ accounts }) => accounts.length > 0).map(({ provider, accounts }) => (
           <div key={provider.id} className="space-y-3">
             <div className="flex items-center space-x-2 text-xs font-mono font-medium tracking-wider uppercase text-[var(--text-main)] opacity-80">
               <span className="w-2 h-2 rounded-full bg-blue-500"></span>

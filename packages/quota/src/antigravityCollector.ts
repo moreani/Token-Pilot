@@ -372,13 +372,12 @@ export async function fetchAllAntigravityAccountsTelemetry(): Promise<Antigravit
     allMap.set(keychainAccount.email.toLowerCase(), keychainAccount);
   }
 
+  const entries = Array.from(allMap.values());
+  const settled = await Promise.allSettled(entries.map((acc) => fetchAntigravityAccountQuota(acc)));
   const results: AntigravityLiveQuota[] = [];
-  for (const acc of allMap.values()) {
-    try {
-      const quota = await fetchAntigravityAccountQuota(acc);
-      results.push(quota);
-    } catch {
-      // failed for single account
+  for (const res of settled) {
+    if (res.status === 'fulfilled') {
+      results.push(res.value);
     }
   }
 

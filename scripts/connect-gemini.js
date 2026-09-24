@@ -65,7 +65,8 @@ console.log('TokenPilot Google OAuth Connect');
 if (email) {
   console.log(`Connecting account: ${email}`);
 }
-console.log('Opening official Google OAuth sign-in page in your browser...');
+console.log('Click or open this link in your browser:');
+console.log(authUrl);
 console.log('----------------------------------------------------');
 
 try {
@@ -78,6 +79,6 @@ try {
   }
   console.log('Browser opened! Please click "Allow" in your browser.');
 } catch (e) {
-  console.log('Could not automatically open browser. Please open this link:');
-  console.log(authUrl);
+  // opened or print
 }
+

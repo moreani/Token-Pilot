@@ -83,10 +83,55 @@ function realQuotaApiPlugin() {
           const agAccounts = await fetchAllAntigravityAccountsTelemetry();
 
           for (const acc of agAccounts) {
+            const formattedName = acc.name
+              ? acc.name.split(' ').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ')
+              : '';
+            
+            const displayTitle = formattedName
+              ? `${formattedName} (${acc.email})`
+              : acc.email;
+
             items.push({
               provider: 'antigravity',
               account: acc.email,
-              display_name: `Google Antigravity (${acc.email})`,
+              email: acc.email,
+              name: formattedName,
+              plan: 'Google Antigravity',
+              display_name: displayTitle,
+              metrics: [
+                {
+                  label: 'Gemini Weekly',
+                  used_percent: 100 - acc.geminiWeeklyPercent,
+                  remaining_percent: acc.geminiWeeklyPercent,
+                  remaining_label: `${acc.geminiWeeklyPercent}%`,
+                  resets_at: null,
+                  reset_label: `Resets in ${acc.geminiWeeklyReset}`
+                },
+                {
+                  label: 'Gemini 5-Hour',
+                  used_percent: 100 - acc.geminiFiveHourPercent,
+                  remaining_percent: acc.geminiFiveHourPercent,
+                  remaining_label: `${acc.geminiFiveHourPercent}%`,
+                  resets_at: null,
+                  reset_label: `Resets in ${acc.geminiFiveHourReset}`
+                },
+                {
+                  label: 'Claude/GPT Weekly',
+                  used_percent: 100 - acc.claudeWeeklyPercent,
+                  remaining_percent: acc.claudeWeeklyPercent,
+                  remaining_label: `${acc.claudeWeeklyPercent}%`,
+                  resets_at: null,
+                  reset_label: `Resets in ${acc.claudeWeeklyReset}`
+                },
+                {
+                  label: 'Claude/GPT 5-Hour',
+                  used_percent: 100 - acc.claudeFiveHourPercent,
+                  remaining_percent: acc.claudeFiveHourPercent,
+                  remaining_label: `${acc.claudeFiveHourPercent}%`,
+                  resets_at: null,
+                  reset_label: `Resets in ${acc.claudeFiveHourReset}`
+                }
+              ],
               windows: [
                 {
                   label: 'Gemini Weekly',

@@ -24,6 +24,32 @@ export interface ClientState {
   auditEvents: AuditEvent[];
 }
 
+const ALIASES_STORAGE_KEY = 'tokenpilot_custom_account_aliases';
+
+function getStoredAlias(accountId: string): string | null {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const stored = window.localStorage.getItem(ALIASES_STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        return parsed[accountId] || null;
+      }
+    }
+  } catch {}
+  return null;
+}
+
+function persistStoredAlias(accountId: string, alias: string) {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const stored = window.localStorage.getItem(ALIASES_STORAGE_KEY);
+      const parsed = stored ? JSON.parse(stored) : {};
+      parsed[accountId] = alias;
+      window.localStorage.setItem(ALIASES_STORAGE_KEY, JSON.stringify(parsed));
+    }
+  } catch {}
+}
+
 export class ClientService {
   private quotaSource = new MockQuotaSource();
   private repoLabTemplate = new RepoLabJobTemplate();
@@ -130,43 +156,80 @@ export class ClientService {
               ? 'codex'
               : item.provider.toLowerCase().includes('opencode')
               ? 'opencode'
+              : item.provider.toLowerCase().includes('antigravity')
+              ? 'antigravity'
               : item.provider.toLowerCase().replace(/\s+/g, '-');
 
-            const accountId = item.email ? `${providerId}-${item.email}` : `${providerId}-${item.plan.toLowerCase()}`;
-            const displayAlias = item.email ? `${item.provider} (${item.email})` : `${item.provider} — ${item.plan}`;
+            const email = item.email || item.account || '';
+            const name = item.name || '';
+            const plan = item.plan || 'Standard';
+
+            const accountId = email
+              ? `${providerId}-${email.replace(/[@.]/g, '_')}`
+              : `${providerId}-${plan.toLowerCase().replace(/\s+/g, '-')}`;
+
+            // Check if user has explicitly customized this account alias in localStorage
+            const customAlias = getStoredAlias(accountId);
+
+            let displayAlias: string = customAlias || '';
+            if (!displayAlias) {
+              if (item.display_name) {
+                displayAlias = item.display_name;
+              } else if (name && email) {
+                displayAlias = `${name} (${email})`;
+              } else if (email) {
+                const matchedName = items.find((it: any) => (it.email === email || it.account === email) && it.name)?.name;
+                if (matchedName) {
+                  displayAlias = `${matchedName} (${email}) • ${providerId === 'codex' ? `Codex ${plan}` : plan}`;
+                } else {
+                  displayAlias = providerId === 'codex' ? `${email} • Codex ${plan}` : email;
+                }
+              } else if (providerId === 'opencode') {
+                displayAlias = 'OpenCode CLI (Go Session)';
+              } else {
+                displayAlias = `${item.provider} — ${plan}`;
+              }
+            }
 
             accounts.push({
               id: accountId,
               providerId,
               displayAlias,
-              upstreamIdentities: item.email ? [item.email] : [item.plan],
+              upstreamIdentities: email ? [email] : [plan],
               capabilities: {
                 trackUsage: true,
                 remainingQuota: true,
                 resetTime: true,
                 executeJobs: true,
-                switchAccount: false,
-                directApi: true,
+                switchAccount: true,
+                directApi: providerId !== 'antigravity',
                 cli: true,
-                supportsPaidOverageDetection: true
+                supportsPaidOverageDetection: providerId === 'codex'
               },
               authStatus: 'ready',
               lastSeenAt: nowIso,
               enabled: true
             });
 
-            const windows = item.metrics.map((m: any, idx: number) => ({
+            const metricsList = (item.metrics && Array.isArray(item.metrics) && item.metrics.length > 0)
+              ? item.metrics
+              : (item.windows && Array.isArray(item.windows))
+              ? item.windows
+              : [];
+
+            const windows = metricsList.map((m: any, idx: number) => ({
               id: `${accountId}-window-${idx}`,
-              label: `${m.label} Pool (${item.plan})`,
-              usedFraction: m.used_percent / 100,
-              remainingFraction: m.remaining_percent / 100,
-              resetsAt: m.resets_at,
+              label: m.label || `Window ${idx + 1}`,
+              usedFraction: (m.used_percent !== undefined ? m.used_percent : (100 - (m.remaining_percent ?? 0))) / 100,
+              remainingFraction: (m.remaining_percent !== undefined ? m.remaining_percent : (100 - (m.used_percent ?? 0))) / 100,
+              resetsAt: m.resets_at || null,
+              resetLabel: m.reset_label || null,
               observedAt: nowIso,
-              source: 'tokscale-real'
+              source: 'real-telemetry'
             }));
 
             const primaryWindow = windows[0];
-            const isBurn = primaryWindow?.remainingFraction > 0.7;
+            const isBurn = primaryWindow ? primaryWindow.remainingFraction > 0.7 : false;
 
             snapshots.push({
               accountId,
@@ -176,7 +239,7 @@ export class ClientService {
               modelDetails: item.models,
               recommendation: isBurn ? 'burn' : 'on_pace',
               recommendationReason: isBurn
-                ? `${Math.round(primaryWindow.remainingFraction * 100)}% quota remaining. Under pace for this window—recommended for productive burn.`
+                ? `${Math.round((primaryWindow?.remainingFraction ?? 1) * 100)}% quota remaining. Under pace for this window—recommended for productive burn.`
                 : 'Usage is on track for this window.',
               freshness: 'fresh',
               rawSourceVersion: 'live-telemetry',
@@ -184,163 +247,11 @@ export class ClientService {
             });
           }
 
-          // Add locally active sessions for Antigravity only if not already discovered from /api/quota
-          if (!accounts.some((a) => a.providerId === 'antigravity')) {
-            accounts.push({
-              id: 'antigravity-active',
-              providerId: 'antigravity',
-              displayAlias: 'Google Antigravity (Gemini & Claude Models)',
-              upstreamIdentities: ['local-active-session'],
-              capabilities: {
-                trackUsage: true,
-                remainingQuota: true,
-                resetTime: true,
-                executeJobs: true,
-                switchAccount: false,
-                directApi: false,
-                cli: true,
-                supportsPaidOverageDetection: false
-              },
-              authStatus: 'ready',
-              lastSeenAt: nowIso,
-              enabled: true
-            });
-
-            snapshots.push({
-              accountId: 'antigravity-active',
-              providerId: 'antigravity',
-              windows: [
-                {
-                  id: 'antigravity-weekly-gemini',
-                  label: 'Gemini Weekly (Resets in 45m)',
-                  usedFraction: 0.22,
-                  remainingFraction: 0.78,
-                  resetsAt: new Date(Date.now() + 45 * 60 * 1000).toISOString(),
-                  observedAt: nowIso,
-                  source: 'antigravity-local'
-                },
-                {
-                  id: 'antigravity-5h-gemini',
-                  label: 'Gemini 5-Hour (Resets in 4h 54m)',
-                  usedFraction: 0.0,
-                  remainingFraction: 1.0,
-                  resetsAt: new Date(Date.now() + (4 * 3600 + 54 * 60) * 1000).toISOString(),
-                  observedAt: nowIso,
-                  source: 'antigravity-local'
-                }
-              ],
-              modelGroups: [
-                {
-                  groupName: 'Gemini Models',
-                  weeklyLimitRemaining: 78,
-                  weeklyResetTime: 'Resets in 45m',
-                  fiveHourLimitRemaining: 100,
-                  fiveHourResetTime: 'Resets in 4h 54m'
-                },
-                {
-                  groupName: 'Claude and GPT models',
-                  weeklyLimitRemaining: 67,
-                  weeklyResetTime: 'Resets in 6d 5h',
-                  fiveHourLimitRemaining: 100,
-                  fiveHourResetTime: 'Resets in 4h 50m'
-                }
-              ],
-              recommendation: 'burn',
-              recommendationReason: '78% Gemini weekly quota remaining. Resets in 45m.',
-              freshness: 'fresh',
-              rawSourceVersion: 'antigravity-live',
-              observedAt: nowIso
-            });
-          }
-
-          // Add Claude & Cursor
-          accounts.push({
-            id: 'claude-local',
-            providerId: 'claude',
-            displayAlias: 'Claude Code (2.6K Messages)',
-            upstreamIdentities: ['claude-user'],
-            capabilities: {
-              trackUsage: true,
-              remainingQuota: true,
-              resetTime: true,
-              executeJobs: true,
-              switchAccount: false,
-              directApi: true,
-              cli: true,
-              supportsPaidOverageDetection: true
-            },
-            authStatus: 'ready',
-            lastSeenAt: nowIso,
-            enabled: true
-          });
-
-          snapshots.push({
-            accountId: 'claude-local',
-            providerId: 'claude',
-            windows: [
-              {
-                id: 'claude-weekly',
-                label: 'Weekly Pool',
-                usedFraction: 0.45,
-                remainingFraction: 0.55,
-                resetsAt: new Date(Date.now() + 36 * 3600 * 1000).toISOString(),
-                observedAt: nowIso,
-                source: 'claude-local'
-              }
-            ],
-            recommendation: 'on_pace',
-            recommendationReason: 'Usage is on track for this window.',
-            freshness: 'fresh',
-            rawSourceVersion: 'claude-live',
-            observedAt: nowIso
-          });
-
-          accounts.push({
-            id: 'cursor-local',
-            providerId: 'cursor',
-            displayAlias: 'Cursor IDE (Local)',
-            upstreamIdentities: ['cursor-local'],
-            capabilities: {
-              trackUsage: true,
-              remainingQuota: true,
-              resetTime: false,
-              executeJobs: false,
-              switchAccount: false,
-              directApi: false,
-              cli: false,
-              supportsPaidOverageDetection: false
-            },
-            authStatus: 'ready',
-            lastSeenAt: nowIso,
-            enabled: true
-          });
-
-          snapshots.push({
-            accountId: 'cursor-local',
-            providerId: 'cursor',
-            windows: [
-              {
-                id: 'cursor-fast',
-                label: 'Fast Requests Pool',
-                usedFraction: 0.5,
-                remainingFraction: 0.5,
-                resetsAt: null,
-                observedAt: nowIso,
-                source: 'cursor-local'
-              }
-            ],
-            recommendation: 'on_pace',
-            recommendationReason: 'Monitor only mode.',
-            freshness: 'fresh',
-            rawSourceVersion: 'cursor-live',
-            observedAt: nowIso
-          });
-
           // Ensure providers list has opencode
           if (!this.state.providers.some((p) => p.id === 'opencode')) {
             this.state.providers.push({
               id: 'opencode',
-              displayName: 'OpenCode Go',
+              displayName: 'OpenCode CLI',
               iconKey: 'opencode',
               enabled: true,
               capabilities: {
@@ -426,6 +337,7 @@ export class ClientService {
     const acc = this.state.accounts.find((a) => a.id === accountId);
     if (acc) {
       acc.displayAlias = newAlias;
+      persistStoredAlias(accountId, newAlias);
       this.logAudit('JOB_CONFIGURED', `Account alias updated to: ${newAlias}`, 'info', {
         accountId,
         newAlias

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Clock, Play, Edit3, Check, Flame, ShieldAlert, ChevronDown, ChevronUp, Layers, Info } from 'lucide-react';
+import { Clock, Play, Edit3, Check, Flame, ShieldAlert, ChevronDown, ChevronUp, Layers, Info, Mail } from 'lucide-react';
 import type { Account, AccountQuotaSnapshot, Provider } from '@tokenpilot/contracts';
 import { getQuotaRangeTier } from '../utils/quotaRanger.js';
 
@@ -86,56 +86,92 @@ export const QuotaCard: React.FC<QuotaCardProps> = ({
     { id: 'gpt-oss-120b-medium', name: 'GPT-OSS 120B', tier: '(Medium)', speed: 'Standard', isFast: false }
   ];
 
+  // Derive human name, email, and distinct initials for clear account recognition
+  const emailMatch = account.displayAlias.match(/\(([^)]+@.+)\)/);
+  const email = emailMatch ? emailMatch[1] : account.upstreamIdentities?.find((id) => id.includes('@'));
+  const rawDisplayName = emailMatch
+    ? account.displayAlias.replace(/\s*\([^)]+@.+\)/, '').trim()
+    : account.displayAlias;
+
+  const initials = (() => {
+    const clean = rawDisplayName.replace(/[^a-zA-Z0-9\s]/g, '').trim();
+    const parts = clean.split(/\s+/).filter(Boolean);
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    }
+    if (parts.length === 1 && parts[0].length >= 2) {
+      return parts[0].slice(0, 2).toUpperCase();
+    }
+    return email ? email.slice(0, 2).toUpperCase() : 'AI';
+  })();
+
   return (
     <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 p-5 flex flex-col justify-between transition-all duration-200 shadow-sm dark:shadow-md">
       <div>
-        {/* Header: Provider & Account Alias */}
+        {/* Header: Visual Avatar, Provider & Account Identity */}
         <div className="flex items-start justify-between gap-3 mb-4">
-          <div>
-            <div className="flex items-center space-x-2">
-              <span className="text-xs uppercase font-mono tracking-wider font-light text-[var(--text-main)] opacity-70">
-                {provider.displayName}
-              </span>
-              {snapshot?.freshness === 'fresh' && (
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/60 font-mono font-medium">
-                  Fresh
-                </span>
-              )}
+          <div className="flex items-start space-x-3 min-w-0">
+            {/* Visual Avatar with account initials */}
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 dark:from-blue-600 dark:to-indigo-700 text-white flex items-center justify-center font-medium text-xs shadow-xs shrink-0 mt-0.5 select-none">
+              {initials}
             </div>
 
-            {isEditingAlias ? (
-              <div className="flex items-center space-x-1.5 mt-1">
-                <input
-                  type="text"
-                  value={aliasInput}
-                  onChange={(e) => setAliasInput(e.target.value)}
-                  className="bg-slate-50 dark:bg-slate-950 border border-blue-500 rounded px-2 py-0.5 text-sm font-medium text-[var(--text-main)] focus:outline-none"
-                  autoFocus
-                />
-                <button
-                  onClick={handleSaveAlias}
-                  className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-emerald-600 dark:text-emerald-400 cursor-pointer"
-                >
-                  <Check className="w-3.5 h-3.5" />
-                </button>
+            <div className="min-w-0">
+              <div className="flex items-center space-x-2">
+                <span className="text-[11px] uppercase font-mono tracking-wider font-light text-[var(--text-main)] opacity-70">
+                  {provider.displayName}
+                </span>
+                {snapshot?.freshness === 'fresh' && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/60 font-mono font-medium">
+                    Fresh
+                  </span>
+                )}
               </div>
-            ) : (
-              <div className="flex items-center space-x-2 mt-0.5 group">
-                <h3 className="heading-500 text-base tracking-tight font-medium text-[var(--text-main)]">
-                  {account.displayAlias}
-                </h3>
-                <button
-                  onClick={() => setIsEditingAlias(true)}
-                  className="opacity-0 group-hover:opacity-100 transition text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 cursor-pointer"
-                >
-                  <Edit3 className="w-3 h-3" />
-                </button>
-              </div>
-            )}
+
+              {isEditingAlias ? (
+                <div className="flex items-center space-x-1.5 mt-1">
+                  <input
+                    type="text"
+                    value={aliasInput}
+                    onChange={(e) => setAliasInput(e.target.value)}
+                    className="bg-slate-50 dark:bg-slate-950 border border-blue-500 rounded px-2 py-0.5 text-sm font-medium text-[var(--text-main)] focus:outline-none"
+                    autoFocus
+                  />
+                  <button
+                    onClick={handleSaveAlias}
+                    className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-emerald-600 dark:text-emerald-400 cursor-pointer"
+                    title="Save custom name"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center space-x-2 mt-0.5 group">
+                  <h3 className="heading-500 text-base tracking-tight font-medium text-[var(--text-main)] truncate" title={account.displayAlias}>
+                    {rawDisplayName}
+                  </h3>
+                  <button
+                    onClick={() => setIsEditingAlias(true)}
+                    className="opacity-0 group-hover:opacity-100 transition text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 cursor-pointer shrink-0"
+                    title="Rename account alias"
+                  >
+                    <Edit3 className="w-3 h-3" />
+                  </button>
+                </div>
+              )}
+
+              {/* Verified Account Email pill */}
+              {email && (
+                <div className="flex items-center space-x-1.5 mt-0.5 text-xs font-mono font-light text-[var(--text-main)] opacity-75">
+                  <Mail className="w-3 h-3 opacity-60 shrink-0" />
+                  <span className="truncate max-w-[210px]" title={email}>{email}</span>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Recommendation Badge */}
-          <div className="flex items-center space-x-1.5">
+          <div className="flex items-center space-x-1.5 shrink-0">
             {isBurn && (
               <span className="flex items-center space-x-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30">
                 <Flame className="w-3 h-3 fill-amber-500 text-amber-500" />
