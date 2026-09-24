@@ -14,7 +14,10 @@
     "build": "npm run build --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
-    "dev": "npm run dev --workspace=apps/desktop"
+    "dev": "npm run dev --workspace=apps/desktop",
+    "graphify": "graphify extract . --code-only && graphify cluster-only .",
+    "graphify:update": "graphify update .",
+    "graphify:query": "graphify query"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",

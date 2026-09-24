@@ -6,6 +6,8 @@ import type {
 } from '@tokenpilot/contracts';
 import type { QuotaDoctorResult, QuotaSource } from './quotaSource.js';
 import { calculateFreshness } from './freshness.js';
+import { fetchAntigravityLiveTelemetry } from './antigravityCollector.js';
+
 
 interface TokscaleQuotaItem {
   provider: string;
@@ -94,35 +96,56 @@ export class RealQuotaSource implements QuotaSource {
       console.error('Failed to query tokscale usage --json:', err);
     }
 
-    // Also add Google Antigravity & Claude from detected local sessions if not returned by tokscale usage
+    // Also add Google Antigravity & Claude from detected local sessions
     if (!snapshots.some((s) => s.providerId.includes('antigravity'))) {
+      const agTelemetry = await fetchAntigravityLiveTelemetry();
       snapshots.push({
         accountId: 'antigravity-local-session',
         providerId: 'antigravity',
         windows: [
           {
-            id: 'antigravity-window-burst',
-            label: '5-Hour Request Pool',
-            usedFraction: 0.18,
-            remainingFraction: 0.82,
-            resetsAt: new Date(now.getTime() + 4 * 3600 * 1000).toISOString(),
+            id: 'antigravity-window-gemini-weekly',
+            label: `Gemini Weekly (${agTelemetry.geminiWeeklyReset})`,
+            usedFraction: (100 - agTelemetry.geminiWeeklyPercent) / 100,
+            remainingFraction: agTelemetry.geminiWeeklyPercent / 100,
+            resetsAt: new Date(now.getTime() + 45 * 60 * 1000).toISOString(),
             observedAt: nowIso,
-            source: 'antigravity-local'
+            source: 'antigravity-cloudcode'
           },
           {
-            id: 'antigravity-window-weekly',
-            label: 'Weekly Quota Allowance',
-            usedFraction: 0.25,
-            remainingFraction: 0.75,
-            resetsAt: new Date(now.getTime() + 48 * 3600 * 1000).toISOString(),
+            id: 'antigravity-window-gemini-5h',
+            label: `Gemini 5-Hour (${agTelemetry.geminiFiveHourReset})`,
+            usedFraction: (100 - agTelemetry.geminiFiveHourPercent) / 100,
+            remainingFraction: agTelemetry.geminiFiveHourPercent / 100,
+            resetsAt: new Date(now.getTime() + (4 * 60 + 54) * 60 * 1000).toISOString(),
             observedAt: nowIso,
-            source: 'antigravity-local'
+            source: 'antigravity-cloudcode'
+          },
+          {
+            id: 'antigravity-window-claude-weekly',
+            label: `Claude/GPT Weekly (${agTelemetry.claudeWeeklyReset})`,
+            usedFraction: (100 - agTelemetry.claudeWeeklyPercent) / 100,
+            remainingFraction: agTelemetry.claudeWeeklyPercent / 100,
+            resetsAt: new Date(now.getTime() + (6 * 24 + 5) * 3600 * 1000).toISOString(),
+            observedAt: nowIso,
+            source: 'antigravity-cloudcode'
+          },
+          {
+            id: 'antigravity-window-claude-5h',
+            label: 'Claude/GPT 5-Hour',
+            usedFraction: (100 - agTelemetry.claudeFiveHourPercent) / 100,
+            remainingFraction: agTelemetry.claudeFiveHourPercent / 100,
+            resetsAt: new Date(now.getTime() + 5 * 3600 * 1000).toISOString(),
+            observedAt: nowIso,
+            source: 'antigravity-cloudcode'
           }
         ],
-        recommendation: 'burn',
-        recommendationReason: '82% burst quota remaining. Resets in 4h.',
+        modelGroups: agTelemetry.modelGroups,
+        modelDetails: agTelemetry.modelDetails,
+        recommendation: agTelemetry.geminiWeeklyPercent > 70 ? 'burn' : 'on_pace',
+        recommendationReason: `Gemini Weekly: ${agTelemetry.geminiWeeklyPercent}% remaining (${agTelemetry.geminiWeeklyReset}). 5-Hour: ${agTelemetry.geminiFiveHourPercent}%.`,
         freshness: 'fresh',
-        rawSourceVersion: 'antigravity-native',
+        rawSourceVersion: 'antigravity-live-cloudcode',
         observedAt: nowIso
       });
     }

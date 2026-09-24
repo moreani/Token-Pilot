@@ -59,7 +59,27 @@ npm run typecheck
 
 # Start local desktop development server
 npm run dev
+
+# Generate / update codebase Knowledge Graph (Graphify)
+npm run graphify
+
+# Query codebase knowledge graph
+npm run graphify:query -- "how does the quota provider work?"
 ```
+
+---
+
+## Codebase Knowledge Graph (Graphify)
+
+TokenPilot includes a native [Graphify](https://github.com/Graphify-Labs/graphify) integration:
+- `.agents/rules/graphify.md`: Always-on rules for AI agents to query the graph rather than grepping flat files.
+- `.agents/skills/graphify/`: Antigravity/Agent skill enabling `/graphify` queries and shortest-path lookups.
+- `graphify-out/`: Generated interactive knowledge graph (`graph.html`), JSON GraphRAG dataset (`graph.json`), and architecture report (`GRAPH_REPORT.md`).
+
+Commands:
+- `npm run graphify`: Re-extract AST & rebuild community clustering.
+- `npm run graphify:update`: Incremental update for modified files.
+- `npm run graphify:query -- "<question>"`: Scoped BFS/DFS graph search.
 
 ---
 

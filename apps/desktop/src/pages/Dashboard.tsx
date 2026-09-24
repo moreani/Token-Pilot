@@ -98,15 +98,17 @@ export const Dashboard: React.FC<DashboardProps> = ({
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               {accounts.map((account) => {
                 const snapshot = state.snapshots.find((s) => s.accountId === account.id);
+                const isWide = provider.id === 'antigravity' || (snapshot?.modelGroups && snapshot.modelGroups.length > 0);
                 return (
-                  <QuotaCard
-                    key={account.id}
-                    account={account}
-                    provider={provider}
-                    snapshot={snapshot}
-                    onSelectForJob={onSelectAccountForJob}
-                    onUpdateAlias={onUpdateAlias}
-                  />
+                  <div key={account.id} className={isWide ? 'col-span-1 md:col-span-2' : ''}>
+                    <QuotaCard
+                      account={account}
+                      provider={provider}
+                      snapshot={snapshot}
+                      onSelectForJob={onSelectAccountForJob}
+                      onUpdateAlias={onUpdateAlias}
+                    />
+                  </div>
                 );
               })}
             </div>

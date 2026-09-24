@@ -172,66 +172,86 @@ export class ClientService {
               accountId,
               providerId,
               windows,
+              modelGroups: item.model_groups,
+              modelDetails: item.models,
               recommendation: isBurn ? 'burn' : 'on_pace',
               recommendationReason: isBurn
                 ? `${Math.round(primaryWindow.remainingFraction * 100)}% quota remaining. Under pace for this window—recommended for productive burn.`
                 : 'Usage is on track for this window.',
               freshness: 'fresh',
-              rawSourceVersion: 'tokscale-live',
+              rawSourceVersion: 'live-telemetry',
               observedAt: nowIso
             });
           }
 
-          // Add locally active sessions for Antigravity & Claude
-          accounts.push({
-            id: 'antigravity-active',
-            providerId: 'antigravity',
-            displayAlias: 'Google Antigravity (Active Agent)',
-            upstreamIdentities: ['aniket-local'],
-            capabilities: {
-              trackUsage: true,
-              remainingQuota: true,
-              resetTime: true,
-              executeJobs: true,
-              switchAccount: false,
-              directApi: false,
-              cli: true,
-              supportsPaidOverageDetection: false
-            },
-            authStatus: 'ready',
-            lastSeenAt: nowIso,
-            enabled: true
-          });
-
-          snapshots.push({
-            accountId: 'antigravity-active',
-            providerId: 'antigravity',
-            windows: [
-              {
-                id: 'antigravity-burst',
-                label: '5-Hour Burst Pool',
-                usedFraction: 0.18,
-                remainingFraction: 0.82,
-                resetsAt: new Date(Date.now() + 4 * 3600 * 1000).toISOString(),
-                observedAt: nowIso,
-                source: 'antigravity-local'
+          // Add locally active sessions for Antigravity only if not already discovered from /api/quota
+          if (!accounts.some((a) => a.providerId === 'antigravity')) {
+            accounts.push({
+              id: 'antigravity-active',
+              providerId: 'antigravity',
+              displayAlias: 'Google Antigravity (Gemini & Claude Models)',
+              upstreamIdentities: ['local-active-session'],
+              capabilities: {
+                trackUsage: true,
+                remainingQuota: true,
+                resetTime: true,
+                executeJobs: true,
+                switchAccount: false,
+                directApi: false,
+                cli: true,
+                supportsPaidOverageDetection: false
               },
-              {
-                id: 'antigravity-weekly',
-                label: 'Weekly Pool',
-                usedFraction: 0.25,
-                remainingFraction: 0.75,
-                resetsAt: new Date(Date.now() + 48 * 3600 * 1000).toISOString(),
-                observedAt: nowIso,
-                source: 'antigravity-local'
-              }
-            ],
-            recommendation: 'burn',
-            recommendationReason: '82% burst quota remaining. Resets in 4 hours.',
-            freshness: 'fresh',
-            rawSourceVersion: 'antigravity-live',
-            observedAt: nowIso
-          });
+              authStatus: 'ready',
+              lastSeenAt: nowIso,
+              enabled: true
+            });
+
+            snapshots.push({
+              accountId: 'antigravity-active',
+              providerId: 'antigravity',
+              windows: [
+                {
+                  id: 'antigravity-weekly-gemini',
+                  label: 'Gemini Weekly (Resets in 45m)',
+                  usedFraction: 0.22,
+                  remainingFraction: 0.78,
+                  resetsAt: new Date(Date.now() + 45 * 60 * 1000).toISOString(),
+                  observedAt: nowIso,
+                  source: 'antigravity-local'
+                },
+                {
+                  id: 'antigravity-5h-gemini',
+                  label: 'Gemini 5-Hour (Resets in 4h 54m)',
+                  usedFraction: 0.0,
+                  remainingFraction: 1.0,
+                  resetsAt: new Date(Date.now() + (4 * 3600 + 54 * 60) * 1000).toISOString(),
+                  observedAt: nowIso,
+                  source: 'antigravity-local'
+                }
+              ],
+              modelGroups: [
+                {
+                  groupName: 'Gemini Models',
+                  weeklyLimitRemaining: 78,
+                  weeklyResetTime: 'Resets in 45m',
+                  fiveHourLimitRemaining: 100,
+                  fiveHourResetTime: 'Resets in 4h 54m'
+                },
+                {
+                  groupName: 'Claude and GPT models',
+                  weeklyLimitRemaining: 67,
+                  weeklyResetTime: 'Resets in 6d 5h',
+                  fiveHourLimitRemaining: 100,
+                  fiveHourResetTime: 'Resets in 4h 50m'
+                }
+              ],
+              recommendation: 'burn',
+              recommendationReason: '78% Gemini weekly quota remaining. Resets in 45m.',
+              freshness: 'fresh',
+              rawSourceVersion: 'antigravity-live',
+              observedAt: nowIso
+            });
+          }
 
           // Add Claude & Cursor
           accounts.push({
