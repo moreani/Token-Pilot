@@ -17,6 +17,7 @@
     "dev": "npm run dev --workspace=apps/desktop",
     "graphify": "graphify extract . --code-only && graphify cluster-only .",
     "graphify:update": "graphify update .",
+    "auth:gemini": "node scripts/connect-gemini.js",
     "graphify:query": "graphify query"
   },
   "devDependencies": {
