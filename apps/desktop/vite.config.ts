@@ -190,8 +190,8 @@ function realQuotaApiPlugin() {
                     used_percent: Math.round((acc.used / acc.limit) * 100),
                     remaining_percent: Math.round((acc.remaining / acc.limit) * 100),
                     remaining_label: `${acc.remaining.toLocaleString()} left`,
-                    resets_at: null,
-                    reset_label: 'Resets monthly'
+                    resets_at: acc.resetsAt || null,
+                    reset_label: acc.resetLabel || 'Resets monthly'
                   }
                 ],
                 windows: [
@@ -201,8 +201,8 @@ function realQuotaApiPlugin() {
                     used_percent: Math.round((acc.used / acc.limit) * 100),
                     remaining_percent: Math.round((acc.remaining / acc.limit) * 100),
                     remaining_label: `${acc.remaining.toLocaleString()} left`,
-                    resets_at: null,
-                    reset_label: 'Resets monthly'
+                    resets_at: acc.resetsAt || null,
+                    reset_label: acc.resetLabel || 'Resets monthly'
                   }
                 ]
               });

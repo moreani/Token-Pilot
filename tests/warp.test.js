@@ -19,6 +19,9 @@ test('Warp: collector safely discovers local database and extracts account quota
     assert.ok(warpAcc.plan.length > 0, 'Expected plan name');
     assert.ok(warpAcc.features, 'Expected feature flags');
     assert.equal(typeof warpAcc.features.codeSuggestions, 'boolean');
+    assert.ok(warpAcc.resetsAt, 'Expected valid resetsAt timestamp');
+    assert.ok(warpAcc.resetLabel, 'Expected valid resetLabel string');
+    assert.match(warpAcc.resetLabel, /Resets in \d+[dhm]/, 'Expected countdown in resetLabel');
   } else {
     // Graceful fallback if Warp is not installed
     const accounts = fetchWarpAccountsQuota();

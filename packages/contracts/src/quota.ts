@@ -4,6 +4,8 @@ export interface QuotaWindow {
   usedFraction: number | null;
   remainingFraction: number | null;
   resetsAt: string | null;
+  resetLabel?: string | null;
+  remainingLabel?: string | null;
   observedAt: string;
   source: string;
 }

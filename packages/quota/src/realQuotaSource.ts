@@ -210,7 +210,8 @@ export class RealQuotaSource implements QuotaSource {
                 label: `Monthly AI Requests (${w.limit.toLocaleString()} limit)`,
                 usedFraction: w.used / w.limit,
                 remainingFraction: w.remaining / w.limit,
-                resetsAt: null,
+                resetsAt: w.resetsAt || null,
+                resetLabel: w.resetLabel || 'Resets monthly',
                 observedAt: nowIso,
                 source: 'warp-sqlite'
               }
