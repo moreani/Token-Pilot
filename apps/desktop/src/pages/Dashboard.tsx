@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { RefreshCw, ShieldCheck, Cpu, HardDrive, Flame } from 'lucide-react';
 import type { Account, ClientState } from '../state/clientService.js';
 import { TopAlertBanner } from '../components/TopAlertBanner.js';
@@ -20,7 +20,17 @@ export const Dashboard: React.FC<DashboardProps> = ({
   onSelectAccountForJob,
   onUpdateAlias
 }) => {
-  const accountsByProvider = state.providers.map((p) => ({
+  const [providerFilter, setProviderFilter] = useState<'all' | string>('all');
+
+  const activeProviders = state.providers.filter((p) =>
+    state.accounts.some((a) => a.providerId === p.id)
+  );
+
+  const filteredProviders = providerFilter === 'all'
+    ? activeProviders
+    : activeProviders.filter((p) => p.id === providerFilter);
+
+  const accountsByProvider = filteredProviders.map((p) => ({
     provider: p,
     accounts: state.accounts.filter((a) => a.providerId === p.id)
   }));
@@ -29,12 +39,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const burnCount = state.snapshots.filter((s) => s.recommendation === 'burn').length;
 
   return (
-    <div className="max-w-7xl mx-auto px-6 py-8">
+    <div className="max-w-7xl mx-auto px-6 py-6">
       {/* Top Banner Recommendation */}
       <TopAlertBanner suggestion={state.suggestion} onUseCredit={onUseCredit} />
 
       {/* Metrics Row */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
         <div className="bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 p-4 rounded-xl shadow-xs">
           <div className="flex items-center space-x-2 text-xs">
             <Cpu className="w-4 h-4 text-blue-500 dark:text-blue-400" />
@@ -69,7 +79,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
       </div>
 
       {/* Quota Ranger System Legend Bar */}
-      <div className="mb-8 p-3.5 rounded-xl bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs shadow-xs">
+      <div className="mb-5 p-3 rounded-xl bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs shadow-xs">
         <div className="flex items-center space-x-2">
           <span className="heading-500 font-medium text-[var(--text-main)]">Quota Ranger System:</span>
           <span className="paragraph-300 font-light text-[var(--text-main)] opacity-70">Adaptive progress indicators</span>
@@ -89,7 +99,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
       </div>
 
       {/* Dashboard Section Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-3">
         <div>
           <h2 className="heading-500 text-xl font-medium tracking-tight text-[var(--text-main)]">
             AI Coding Accounts & Quota Windows
@@ -108,8 +118,38 @@ export const Dashboard: React.FC<DashboardProps> = ({
         </button>
       </div>
 
+      {/* Quick Provider Filter Tabs */}
+      <div className="flex items-center space-x-2 mb-5 overflow-x-auto pb-1">
+        <button
+          onClick={() => setProviderFilter('all')}
+          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer ${
+            providerFilter === 'all'
+              ? 'bg-blue-600 text-white shadow-xs'
+              : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-[var(--text-main)] hover:bg-slate-50 dark:hover:bg-slate-800'
+          }`}
+        >
+          All Providers ({state.accounts.length})
+        </button>
+        {activeProviders.map((p) => {
+          const count = state.accounts.filter((a) => a.providerId === p.id).length;
+          return (
+            <button
+              key={p.id}
+              onClick={() => setProviderFilter(p.id)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer ${
+                providerFilter === p.id
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-[var(--text-main)] hover:bg-slate-50 dark:hover:bg-slate-800'
+              }`}
+            >
+              {p.displayName} ({count})
+            </button>
+          );
+        })}
+      </div>
+
       {/* Provider & Account Cards Grid */}
-      <div className="space-y-8">
+      <div className="space-y-6">
         {accountsByProvider.filter(({ accounts }) => accounts.length > 0).map(({ provider, accounts }) => (
           <div key={provider.id} className="space-y-3">
             <div className="flex items-center space-x-2 text-xs font-mono font-medium tracking-wider uppercase text-[var(--text-main)] opacity-80">
@@ -121,9 +161,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               {accounts.map((account) => {
                 const snapshot = state.snapshots.find((s) => s.accountId === account.id);
-                const isWide = provider.id === 'antigravity' || (snapshot?.modelGroups && snapshot.modelGroups.length > 0);
                 return (
-                  <div key={account.id} className={isWide ? 'col-span-1 md:col-span-2' : ''}>
+                  <div key={account.id} className="h-full">
                     <QuotaCard
                       account={account}
                       provider={provider}

@@ -56,7 +56,7 @@ export const QuotaCard: React.FC<QuotaCardProps> = ({
 }) => {
   const [isEditingAlias, setIsEditingAlias] = useState(false);
   const [aliasInput, setAliasInput] = useState(account.displayAlias);
-  const [showModelBreakdown, setShowModelBreakdown] = useState(provider.id === 'antigravity');
+  const [showModelBreakdown, setShowModelBreakdown] = useState(false);
   const [selectedModel, setSelectedModel] = useState('gemini-3.8-flash-medium');
 
   const primaryWindow = snapshot?.windows[0];
@@ -218,15 +218,48 @@ export const QuotaCard: React.FC<QuotaCardProps> = ({
         {/* In-Editor Credit Usage Breakdown (Google Antigravity & Multi-model groups) */}
         {(hasModelGroups || provider.id === 'antigravity') && (
           <div className="mb-4">
+            {/* Compact Model Group Preview when collapsed */}
+            {hasModelGroups && !showModelBreakdown && (
+              <div className="grid grid-cols-2 gap-2 mb-2.5">
+                {snapshot?.modelGroups?.map((group, idx) => {
+                  const percent = group.weeklyLimitRemaining;
+                  const tier = getQuotaRangeTier(percent);
+                  const isGemini = group.groupName.toLowerCase().includes('gemini');
+                  return (
+                    <div
+                      key={idx}
+                      className="p-2 rounded-xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200/80 dark:border-slate-800 flex flex-col justify-between"
+                    >
+                      <div className="flex items-center justify-between text-[11px] mb-1">
+                        <span className="truncate opacity-75 font-light">{isGemini ? 'Gemini Models' : 'Claude & GPT'}</span>
+                        <span className={`font-mono text-xs font-medium ${tier.textClass}`}>{percent}%</span>
+                      </div>
+                      <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden mb-1">
+                        <div
+                          className={`h-full rounded-full transition-all duration-300 ${tier.gradientClass}`}
+                          style={{ width: `${percent}%` }}
+                        />
+                      </div>
+                      <div className="text-[10px] opacity-60 font-light truncate" title={group.weeklyResetTime}>
+                        {group.weeklyResetTime}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
             <button
               onClick={() => setShowModelBreakdown(!showModelBreakdown)}
-              className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950/80 hover:bg-slate-100 dark:hover:bg-slate-950 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 text-xs font-light text-[var(--text-main)] transition cursor-pointer"
+              className="w-full flex items-center justify-between px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-950/80 hover:bg-slate-100 dark:hover:bg-slate-950 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 text-xs font-light text-[var(--text-main)] transition cursor-pointer"
             >
               <div className="flex items-center space-x-2">
                 <Layers className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400" />
-                <span className="heading-500 font-medium text-[var(--text-main)]">View Usage & Models</span>
+                <span className="heading-500 font-medium text-[var(--text-main)]">
+                  {showModelBreakdown ? 'Hide Model Breakdown' : `View 33 Models & Limits`}
+                </span>
                 <span className="text-[10px] bg-blue-50 dark:bg-blue-500/20 text-blue-600 dark:text-blue-300 px-1.5 py-0.5 rounded border border-blue-200 dark:border-blue-500/30 font-medium">
-                  Antigravity Live
+                  Live
                 </span>
               </div>
               {showModelBreakdown ? (
