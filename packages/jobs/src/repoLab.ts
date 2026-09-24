@@ -74,19 +74,24 @@ export class RepoLabJobTemplate implements JobTemplate<RepoLabSpec> {
     return {
       steps: [
         {
+          name: 'Accelerator & Skill Discovery (First Work)',
+          type: 'discovery',
+          description: 'Scout open-source repositories and agent skills to accelerate execution before writing code from scratch.'
+        },
+        {
           name: 'Sandbox Initialization',
           type: 'sandbox',
           description: 'Spin up disposable non-root container with network allowlist.'
         },
         {
-          name: 'Clone Repository',
+          name: 'Clone Repository & Ingest Tools',
           type: 'sandbox',
-          description: `Clone ${config.repoUrl} into isolated workspace.`
+          description: `Clone ${config.repoUrl} into isolated workspace alongside discovered skills.`
         },
         {
-          name: 'AI Agent Evaluation',
+          name: 'AI Agent Evaluation & Execution',
           type: 'agent',
-          description: `Analyze codebase and address: "${config.objective}"`
+          description: `Execute task with discovered accelerators to address: "${config.objective}"`
         },
         {
           name: 'Static & Security Verification',

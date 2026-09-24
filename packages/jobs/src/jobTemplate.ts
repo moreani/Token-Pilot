@@ -19,7 +19,7 @@ export interface ValidationResult {
 
 export interface JobPlanStep {
   name: string;
-  type: 'sandbox' | 'agent' | 'verification';
+  type: 'discovery' | 'sandbox' | 'agent' | 'verification';
   description: string;
 }
 

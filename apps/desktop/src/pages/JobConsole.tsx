@@ -171,11 +171,11 @@ export const JobConsole: React.FC<JobConsoleProps> = ({
       {/* State Progress Bar */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-xl mb-6 flex items-center justify-between text-xs font-mono shadow-xs">
         {[
-          { key: 'AUTHORIZED', label: 'Authorized' },
-          { key: 'PREPARING_SANDBOX', label: 'Preparing Sandbox' },
-          { key: 'SANDBOX_READY', label: 'Sandbox Ready' },
-          { key: 'RUNNING', label: 'Running' },
-          { key: 'COMPLETED', label: 'Completed' }
+          { key: 'AUTHORIZED', label: '1. Discovery & Auth' },
+          { key: 'PREPARING_SANDBOX', label: '2. Sandbox Init' },
+          { key: 'SANDBOX_READY', label: '3. Tools Bound' },
+          { key: 'RUNNING', label: '4. AI Execution' },
+          { key: 'COMPLETED', label: '5. Completed' }
         ].map((st, i) => {
           const isCurrent = job.state === st.key;
           const isDone = isCompleted || (i < 3 && (job.state === 'RUNNING' || job.state === 'SANDBOX_READY'));
@@ -220,7 +220,7 @@ export const JobConsole: React.FC<JobConsoleProps> = ({
             logs.map((line, idx) => (
               <div key={idx} className="flex space-x-2">
                 <span className="text-slate-600 select-none">$</span>
-                <span className={line.includes('[Sandbox]') ? 'text-cyan-300' : line.includes('[Exec]') ? 'text-emerald-300' : 'text-slate-300'}>
+                <span className={line.includes('[Discovery]') ? 'text-violet-300 font-medium' : line.includes('[Sandbox]') ? 'text-cyan-300' : line.includes('[Exec]') ? 'text-emerald-300' : 'text-slate-300'}>
                   {line}
                 </span>
               </div>
