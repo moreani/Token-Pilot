@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { RefreshCw, ShieldCheck, Cpu, HardDrive, Flame, CheckCircle, ArrowUpDown, AlertTriangle } from 'lucide-react';
+import { RefreshCw, ShieldCheck, Cpu, HardDrive, Flame, ArrowUpDown, AlertTriangle } from 'lucide-react';
+
 import type { Account, ClientState } from '../state/clientService.js';
 import { TopAlertBanner } from '../components/TopAlertBanner.js';
 import { QuotaCard } from '../components/QuotaCard.js';
@@ -43,9 +44,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const [providerFilter, setProviderFilter] = useState<'all' | string>('all');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastRefreshedAt, setLastRefreshedAt] = useState<number | null>(null);
-  const [showToast, setShowToast] = useState(false);
   const [sortBy, setSortBy] = useState<'default' | 'lowest'>('default');
-  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const autoRefreshRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const lastRefreshedLabel = useTimeSince(lastRefreshedAt);
@@ -56,10 +55,6 @@ export const Dashboard: React.FC<DashboardProps> = ({
     try {
       await onRefreshQuotas();
       setLastRefreshedAt(Date.now());
-      // Show toast
-      setShowToast(true);
-      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-      toastTimerRef.current = setTimeout(() => setShowToast(false), 2500);
     } finally {
       setIsRefreshing(false);
     }
@@ -72,7 +67,6 @@ export const Dashboard: React.FC<DashboardProps> = ({
     }, AUTO_REFRESH_MS);
     return () => {
       if (autoRefreshRef.current) clearInterval(autoRefreshRef.current);
-      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     };
   }, [handleRefresh]);
 
@@ -116,16 +110,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
   return (
     <div className="max-w-7xl mx-auto px-6 py-6">
-      {/* Success Toast */}
-      {showToast && (
-        <div className="fixed top-4 right-4 z-50 flex items-center space-x-2 px-4 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-medium shadow-lg animate-in slide-in-from-top-2 duration-200">
-          <CheckCircle className="w-4 h-4" />
-          <span>Quotas updated</span>
-        </div>
-      )}
-
       {/* Top Banner Recommendation */}
       <TopAlertBanner suggestion={state.suggestion} onUseCredit={onUseCredit} />
+
 
       {/* Low Quota Warning Banner */}
       {lowQuotaAccounts.length > 0 && (
