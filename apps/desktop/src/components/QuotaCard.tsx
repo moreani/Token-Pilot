@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { Clock, Play, Edit3, Check, Flame, ShieldAlert, ChevronDown, ChevronUp, Layers, Info, Mail } from 'lucide-react';
+import { Clock, Play, Edit3, Check, Flame, ShieldAlert, ChevronDown, ChevronUp, Layers, Info, Mail, AlertCircle, Gift } from 'lucide-react';
 import type { Account, AccountQuotaSnapshot, Provider } from '@tokenpilot/contracts';
 import { getQuotaRangeTier } from '../utils/quotaRanger.js';
+import { useCountdown } from '../hooks/useCountdown.js';
 
 interface QuotaCardProps {
   account: Account;
@@ -65,10 +66,17 @@ export const QuotaCard: React.FC<QuotaCardProps> = ({
     ? Math.round(primaryWindow.remainingFraction * 100)
     : null;
 
+  // Live countdown to reset time
+  const countdown = useCountdown(primaryWindow?.resetsAt);
+
   const rangerTier = remainingPercent !== null ? getQuotaRangeTier(remainingPercent) : null;
   const isBurn = snapshot?.recommendation === 'burn';
   const isConserve = snapshot?.recommendation === 'conserve';
   const hasModelGroups = snapshot?.modelGroups && snapshot.modelGroups.length > 0;
+  const isLowQuota = remainingPercent !== null && remainingPercent < 15;
+
+  // Codex reset credit badge
+  const resetCredit = (account as any)._resetCreditCount as number | undefined;
 
   const handleSaveAlias = () => {
     if (aliasInput.trim() && aliasInput !== account.displayAlias) {
@@ -116,7 +124,11 @@ export const QuotaCard: React.FC<QuotaCardProps> = ({
     : 'from-blue-500 to-indigo-600 dark:from-blue-600 dark:to-indigo-700';
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 p-5 flex flex-col justify-between transition-all duration-200 shadow-sm dark:shadow-md">
+    <div className={`bg-white dark:bg-slate-900 rounded-2xl border p-5 flex flex-col justify-between transition-all duration-200 shadow-sm dark:shadow-md ${
+      isLowQuota
+        ? 'border-rose-300 dark:border-rose-700 ring-1 ring-rose-200 dark:ring-rose-800'
+        : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+    }`}>
       <div>
         {/* Header: Visual Avatar, Provider & Account Identity */}
         <div className="flex items-start justify-between gap-3 mb-4">
@@ -190,8 +202,14 @@ export const QuotaCard: React.FC<QuotaCardProps> = ({
             </div>
           </div>
 
-          {/* Recommendation Badge */}
-          <div className="flex items-center space-x-1.5 shrink-0">
+          {/* Recommendation Badge + Credit Badge */}
+          <div className="flex items-center space-x-1.5 shrink-0 flex-wrap gap-y-1">
+            {isLowQuota && !isBurn && !isConserve && (
+              <span className="flex items-center space-x-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/30">
+                <AlertCircle className="w-3 h-3 text-rose-500" />
+                <span>Low</span>
+              </span>
+            )}
             {isBurn && (
               <span className="flex items-center space-x-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30">
                 <Flame className="w-3 h-3 fill-amber-500 text-amber-500" />
@@ -202,6 +220,12 @@ export const QuotaCard: React.FC<QuotaCardProps> = ({
               <span className="flex items-center space-x-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/30">
                 <ShieldAlert className="w-3 h-3 text-rose-500" />
                 <span>Conserve</span>
+              </span>
+            )}
+            {resetCredit !== undefined && resetCredit > 0 && (
+              <span className="flex items-center space-x-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-violet-500/10 text-violet-600 dark:text-violet-400 border border-violet-500/30" title="Free rate limit reset available">
+                <Gift className="w-3 h-3 text-violet-500" />
+                <span>{resetCredit} Reset{resetCredit > 1 ? 's' : ''}</span>
               </span>
             )}
           </div>
@@ -444,34 +468,49 @@ export const QuotaCard: React.FC<QuotaCardProps> = ({
 
         {/* Windows Breakdown for standard providers */}
         {(!hasModelGroups && provider.id !== 'antigravity') && snapshot?.windows && snapshot.windows.length > 0 && (
-          <div className="space-y-1.5 mb-4 bg-slate-50 dark:bg-slate-950/60 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800/60 text-xs">
+          <div className="space-y-2 mb-4 bg-slate-50 dark:bg-slate-950/60 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800/60 text-xs">
             {snapshot.windows.map((win) => {
               const winPercent = win.remainingFraction !== null ? Math.round(win.remainingFraction * 100) : null;
               const winTier = winPercent !== null ? getQuotaRangeTier(winPercent) : null;
+              const winResetLabel = (win as any).resetLabel as string | null;
               return (
-                <div key={win.id} className="flex items-center justify-between text-[11px]">
-                  <span className="paragraph-300 font-light text-[var(--text-main)] truncate">{win.label}</span>
-                  <div className="flex items-center space-x-1.5">
-                    {winTier && (
-                      <span className={`w-1.5 h-1.5 rounded-full ${winTier.dotColor}`}></span>
-                    )}
-                    <span className="font-mono font-medium text-[var(--text-main)]">
-                      {(win as any).remainingLabel ? (win as any).remainingLabel : winPercent !== null ? `${winPercent}% left` : 'Active'}
-                    </span>
+                <div key={win.id} className="space-y-0.5">
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="paragraph-300 font-light text-[var(--text-main)] truncate">{win.label}</span>
+                    <div className="flex items-center space-x-1.5 shrink-0">
+                      {winTier && (
+                        <span className={`w-1.5 h-1.5 rounded-full ${winTier.dotColor}`}></span>
+                      )}
+                      <span className="font-mono font-medium text-[var(--text-main)]">
+                        {(win as any).remainingLabel ? (win as any).remainingLabel : winPercent !== null ? `${winPercent}% left` : 'Active'}
+                      </span>
+                    </div>
                   </div>
+                  {winResetLabel && (
+                    <div className="text-[10px] font-mono opacity-55 text-[var(--text-main)] pl-0.5">
+                      {winResetLabel}
+                    </div>
+                  )}
                 </div>
               );
             })}
           </div>
         )}
 
-        {/* Reset Countdown */}
+        {/* Reset Countdown — live ticking or static label */}
         {(primaryWindow?.resetsAt || (primaryWindow as any)?.resetLabel) && (
           <div className="flex items-center space-x-1.5 text-xs mb-4">
             <Clock className="w-3.5 h-3.5 text-slate-400" />
             <span className="paragraph-300 font-light text-[var(--text-main)]">
-              {(primaryWindow as any)?.resetLabel ? (
-                <span className="font-medium text-[var(--text-main)] font-mono">{(primaryWindow as any).resetLabel}</span>
+              {countdown ? (
+                <>
+                  Resets in{' '}
+                  <strong className="font-medium text-[var(--text-main)] font-mono">{countdown}</strong>
+                </>
+              ) : (primaryWindow as any)?.resetLabel ? (
+                <span className="font-medium text-[var(--text-main)] font-mono">
+                  {(primaryWindow as any).resetLabel}
+                </span>
               ) : (
                 <>
                   Resets in{' '}

@@ -217,6 +217,10 @@ export class ClientService {
               displayAlias,
               upstreamIdentities: email ? [email] : [plan],
               photoUrl: item.photo_url || undefined,
+              // Pass reset credit count for Codex badge
+              ...(item.reset_credits?.available_count !== undefined
+                ? { _resetCreditCount: item.reset_credits.available_count }
+                : {}),
               capabilities: {
                 trackUsage: true,
                 remainingQuota: true,
@@ -230,7 +234,8 @@ export class ClientService {
               authStatus: 'ready',
               lastSeenAt: nowIso,
               enabled: true
-            });
+            } as any);
+
 
             const metricsList = (item.metrics && Array.isArray(item.metrics) && item.metrics.length > 0)
               ? item.metrics

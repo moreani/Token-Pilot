@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
-import { RefreshCw, ShieldCheck, Cpu, HardDrive, Flame } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { RefreshCw, ShieldCheck, Cpu, HardDrive, Flame, CheckCircle, ArrowUpDown, AlertTriangle } from 'lucide-react';
 import type { Account, ClientState } from '../state/clientService.js';
 import { TopAlertBanner } from '../components/TopAlertBanner.js';
 import { QuotaCard } from '../components/QuotaCard.js';
 import { QUOTA_RANGES } from '../utils/quotaRanger.js';
+
+const AUTO_REFRESH_MS = 5 * 60 * 1000; // 5 minutes
 
 interface DashboardProps {
   state: ClientState;
@@ -11,6 +13,24 @@ interface DashboardProps {
   onUseCredit: () => void;
   onSelectAccountForJob: (account: Account) => void;
   onUpdateAlias: (accountId: string, newAlias: string) => void;
+}
+
+function useTimeSince(ts: number | null): string {
+  const [label, setLabel] = useState('');
+  useEffect(() => {
+    if (!ts) return;
+    const update = () => {
+      const secs = Math.floor((Date.now() - ts) / 1000);
+      if (secs < 10) setLabel('just now');
+      else if (secs < 60) setLabel(`${secs}s ago`);
+      else if (secs < 3600) setLabel(`${Math.floor(secs / 60)}m ago`);
+      else setLabel(`${Math.floor(secs / 3600)}h ago`);
+    };
+    update();
+    const id = setInterval(update, 10000);
+    return () => clearInterval(id);
+  }, [ts]);
+  return label;
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({
@@ -22,17 +42,39 @@ export const Dashboard: React.FC<DashboardProps> = ({
 }) => {
   const [providerFilter, setProviderFilter] = useState<'all' | string>('all');
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastRefreshedAt, setLastRefreshedAt] = useState<number | null>(null);
+  const [showToast, setShowToast] = useState(false);
+  const [sortBy, setSortBy] = useState<'default' | 'lowest'>('default');
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autoRefreshRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const handleRefresh = async () => {
+  const lastRefreshedLabel = useTimeSince(lastRefreshedAt);
+
+  const handleRefresh = useCallback(async () => {
     if (isRefreshing) return;
     setIsRefreshing(true);
     try {
       await onRefreshQuotas();
+      setLastRefreshedAt(Date.now());
+      // Show toast
+      setShowToast(true);
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+      toastTimerRef.current = setTimeout(() => setShowToast(false), 2500);
     } finally {
       setIsRefreshing(false);
     }
-  };
+  }, [isRefreshing, onRefreshQuotas]);
 
+  // Auto-refresh every 5 minutes
+  useEffect(() => {
+    autoRefreshRef.current = setInterval(() => {
+      handleRefresh();
+    }, AUTO_REFRESH_MS);
+    return () => {
+      if (autoRefreshRef.current) clearInterval(autoRefreshRef.current);
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    };
+  }, [handleRefresh]);
 
   const activeProviders = state.providers.filter((p) =>
     state.accounts.some((a) => a.providerId === p.id)
@@ -42,9 +84,31 @@ export const Dashboard: React.FC<DashboardProps> = ({
     ? activeProviders
     : activeProviders.filter((p) => p.id === providerFilter);
 
+  // Low quota accounts (< 15% remaining on primary window)
+  const lowQuotaAccounts = state.accounts.filter((acc) => {
+    const snap = state.snapshots.find((s) => s.accountId === acc.id);
+    const primary = snap?.windows[0];
+    if (!primary) return false;
+    return (primary.remainingFraction ?? 1) < 0.15;
+  });
+
+  // Sort accounts within each provider group
+  const sortAccounts = (accounts: Account[]) => {
+    if (sortBy === 'lowest') {
+      return [...accounts].sort((a, b) => {
+        const snapA = state.snapshots.find((s) => s.accountId === a.id);
+        const snapB = state.snapshots.find((s) => s.accountId === b.id);
+        const remA = snapA?.windows[0]?.remainingFraction ?? 1;
+        const remB = snapB?.windows[0]?.remainingFraction ?? 1;
+        return remA - remB; // lowest first
+      });
+    }
+    return accounts;
+  };
+
   const accountsByProvider = filteredProviders.map((p) => ({
     provider: p,
-    accounts: state.accounts.filter((a) => a.providerId === p.id)
+    accounts: sortAccounts(state.accounts.filter((a) => a.providerId === p.id))
   }));
 
   const totalAccounts = state.accounts.length;
@@ -52,8 +116,32 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
   return (
     <div className="max-w-7xl mx-auto px-6 py-6">
+      {/* Success Toast */}
+      {showToast && (
+        <div className="fixed top-4 right-4 z-50 flex items-center space-x-2 px-4 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-medium shadow-lg animate-in slide-in-from-top-2 duration-200">
+          <CheckCircle className="w-4 h-4" />
+          <span>Quotas updated</span>
+        </div>
+      )}
+
       {/* Top Banner Recommendation */}
       <TopAlertBanner suggestion={state.suggestion} onUseCredit={onUseCredit} />
+
+      {/* Low Quota Warning Banner */}
+      {lowQuotaAccounts.length > 0 && (
+        <div className="mb-4 flex items-start space-x-2.5 p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/60 text-xs text-rose-700 dark:text-rose-400">
+          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-rose-500" />
+          <div>
+            <span className="font-semibold">Low quota alert: </span>
+            {lowQuotaAccounts.map((a) => {
+              const snap = state.snapshots.find((s) => s.accountId === a.id);
+              const pct = Math.round((snap?.windows[0]?.remainingFraction ?? 0) * 100);
+              const name = a.displayAlias.split('•')[0].split('(')[0].trim();
+              return `${name} (${pct}% left)`;
+            }).join(' · ')}
+          </div>
+        </div>
+      )}
 
       {/* Metrics Row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
@@ -114,25 +202,54 @@ export const Dashboard: React.FC<DashboardProps> = ({
       <div className="flex items-center justify-between mb-3">
         <div>
           <h2 className="heading-500 text-xl font-medium tracking-tight text-[var(--text-main)]">
-            AI Coding Accounts & Quota Windows
+            AI Coding Accounts &amp; Quota Windows
           </h2>
           <p className="paragraph-300 text-xs mt-0.5 font-light text-[var(--text-main)] opacity-70">
             Real-time capacity tracking across all configured providers. Multiple accounts per provider supported.
           </p>
         </div>
 
-        <button
-          onClick={handleRefresh}
-          disabled={isRefreshing}
-          className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs font-medium border transition cursor-pointer ${
-            isRefreshing
-              ? 'bg-slate-100 dark:bg-slate-800 border-slate-300 dark:border-slate-700 opacity-60 cursor-not-allowed'
-              : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border-slate-300 dark:border-slate-700'
-          } text-[var(--text-main)]`}
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
-          <span>{isRefreshing ? 'Refreshing…' : 'Refresh Quotas'}</span>
-        </button>
+        <div className="flex items-center space-x-2">
+          {/* Sort toggle */}
+          <button
+            onClick={() => setSortBy((prev) => prev === 'default' ? 'lowest' : 'default')}
+            className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition cursor-pointer ${
+              sortBy === 'lowest'
+                ? 'bg-blue-600 text-white border-blue-600'
+                : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border-slate-300 dark:border-slate-700 text-[var(--text-main)]'
+            }`}
+            title="Sort by lowest quota first"
+          >
+            <ArrowUpDown className="w-3.5 h-3.5" />
+            <span>{sortBy === 'lowest' ? 'Lowest First' : 'Sort'}</span>
+          </button>
+
+          {/* Refresh button with last-refreshed label */}
+          <div className="flex flex-col items-end">
+            <button
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs font-medium border transition cursor-pointer ${
+                isRefreshing
+                  ? 'bg-slate-100 dark:bg-slate-800 border-slate-300 dark:border-slate-700 opacity-60 cursor-not-allowed'
+                  : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border-slate-300 dark:border-slate-700'
+              } text-[var(--text-main)]`}
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+              <span>{isRefreshing ? 'Refreshing…' : 'Refresh Quotas'}</span>
+            </button>
+            {lastRefreshedAt && !isRefreshing && (
+              <span className="text-[10px] opacity-50 mt-0.5 font-mono text-[var(--text-main)]">
+                Updated {lastRefreshedLabel}
+              </span>
+            )}
+            {!lastRefreshedAt && (
+              <span className="text-[10px] opacity-40 mt-0.5 font-mono text-[var(--text-main)]">
+                Auto-refreshes every 5m
+              </span>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Quick Provider Filter Tabs */}
@@ -149,17 +266,24 @@ export const Dashboard: React.FC<DashboardProps> = ({
         </button>
         {activeProviders.map((p) => {
           const count = state.accounts.filter((a) => a.providerId === p.id).length;
+          const hasLow = state.accounts
+            .filter((a) => a.providerId === p.id)
+            .some((a) => {
+              const snap = state.snapshots.find((s) => s.accountId === a.id);
+              return (snap?.windows[0]?.remainingFraction ?? 1) < 0.15;
+            });
           return (
             <button
               key={p.id}
               onClick={() => setProviderFilter(p.id)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer ${
+              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer ${
                 providerFilter === p.id
                   ? 'bg-blue-600 text-white shadow-xs'
                   : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-[var(--text-main)] hover:bg-slate-50 dark:hover:bg-slate-800'
               }`}
             >
-              {p.displayName} ({count})
+              <span>{p.displayName} ({count})</span>
+              {hasLow && <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />}
             </button>
           );
         })}
