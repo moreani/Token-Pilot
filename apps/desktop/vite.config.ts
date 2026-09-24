@@ -2,7 +2,7 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { execSync } from 'node:child_process';
-import { fetchAllAntigravityAccountsTelemetry, fetchWarpAccountsQuota } from '@tokenpilot/quota/node';
+import { fetchAllAntigravityAccountsTelemetry, fetchWarpAccountsQuota, fetchClaudeAccountQuota } from '@tokenpilot/quota/node';
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -209,6 +209,75 @@ function realQuotaApiPlugin() {
             }
           } catch (warpErr) {
             console.warn('Failed to collect Warp accounts in dev server:', warpErr);
+          }
+
+          // Add Claude fallback if tokscale didn't return a Claude entry
+          const hasClaudeFromTokscale = items.some(
+            (it: any) => it.provider && it.provider.toLowerCase().includes('claude')
+          );
+          if (!hasClaudeFromTokscale) {
+            try {
+              const claude = fetchClaudeAccountQuota();
+              if (claude) {
+                const fhRemaining = Math.max(0, claude.fhLimit - claude.fhUsed);
+                const sdRemaining = Math.max(0, claude.sdLimit - claude.sdUsed);
+                const fhUsedPct = Math.round((claude.fhUsed / claude.fhLimit) * 100);
+                const fhRemainingPct = 100 - fhUsedPct;
+                const sdUsedPct = Math.round((claude.sdUsed / claude.sdLimit) * 100);
+                const sdRemainingPct = 100 - sdUsedPct;
+                const displayTitle = claude.name
+                  ? `${claude.name} • Claude ${claude.plan}`
+                  : `Claude ${claude.plan}`;
+                items.push({
+                  provider: 'claude',
+                  account: claude.accountId,
+                  email: claude.email || '',
+                  name: claude.name || '',
+                  plan: `Claude ${claude.plan}`,
+                  display_name: displayTitle,
+                  metrics: [
+                    {
+                      label: '5-Hour Fast Messages',
+                      used_percent: fhUsedPct,
+                      remaining_percent: fhRemainingPct,
+                      remaining_label: `${fhRemaining} left`,
+                      resets_at: null,
+                      reset_label: 'Resets every 5h'
+                    },
+                    {
+                      label: 'Slow-Down Messages',
+                      used_percent: sdUsedPct,
+                      remaining_percent: sdRemainingPct,
+                      remaining_label: `${sdRemaining} left`,
+                      resets_at: null,
+                      reset_label: 'Resets every 5h'
+                    }
+                  ],
+                  windows: [
+                    {
+                      id: `${claude.accountId}-window-fh`,
+                      label: `5-Hour Fast Messages (${claude.fhLimit}/5h)`,
+                      used_percent: fhUsedPct,
+                      remaining_percent: fhRemainingPct,
+                      remaining_label: `${fhRemaining} left`,
+                      resets_at: null,
+                      reset_label: 'Resets every 5h'
+                    },
+                    {
+                      id: `${claude.accountId}-window-sd`,
+                      label: `Slow-Down Messages (${claude.sdLimit}/5h)`,
+                      used_percent: sdUsedPct,
+                      remaining_percent: sdRemainingPct,
+                      remaining_label: `${sdRemaining} left`,
+                      resets_at: null,
+                      reset_label: 'Resets every 5h'
+                    }
+                  ]
+                });
+              }
+            } catch (claudeErr) {
+              console.warn('Failed to collect Claude account in dev server:', claudeErr);
+            }
           }
 
           res.setHeader('Content-Type', 'application/json');

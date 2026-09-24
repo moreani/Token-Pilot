@@ -176,6 +176,8 @@ export class ClientService {
               ? 'antigravity'
               : item.provider.toLowerCase().includes('warp')
               ? 'warp'
+              : item.provider.toLowerCase().includes('claude')
+              ? 'claude'
               : item.provider.toLowerCase().replace(/\s+/g, '-');
 
             const email = item.email || item.account || '';
