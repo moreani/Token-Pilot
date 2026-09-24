@@ -11,7 +11,9 @@ import {
   ChevronUp,
   ChevronDown,
   Layers,
-  Shield
+  Shield,
+  ShieldCheck,
+  Plus
 } from 'lucide-react';
 
 import type { Account, ClientState } from '../state/clientService.js';
@@ -104,6 +106,17 @@ export const JobWizard: React.FC<JobWizardProps> = ({
     });
   };
 
+  const selectAllEligibleAccounts = () => {
+    setSelectedAccountIds(eligibleAccounts.map((a) => a.id));
+  };
+
+  const resetToPrimaryOnly = () => {
+    const primary = defaultAccount || eligibleAccounts[0];
+    if (primary) {
+      setSelectedAccountIds([primary.id]);
+    }
+  };
+
   // Step 5: Trigger Preflight
   const handleProceedToPreflight = () => {
     try {
@@ -158,7 +171,7 @@ export const JobWizard: React.FC<JobWizardProps> = ({
           <span className="heading-500 text-blue-600 dark:text-blue-400 font-medium">
             {step === 1 && 'Select Job Type'}
             {step === 2 && 'Configure Repository'}
-            {step === 3 && 'Assign Account'}
+            {step === 3 && 'Which Accounts to Use'}
             {step === 4 && 'Security & Budget'}
             {step === 5 && 'Preflight Verification'}
             {step === 6 && 'Human Authorization'}
@@ -331,23 +344,42 @@ export const JobWizard: React.FC<JobWizardProps> = ({
         {/* STEP 3: Multi-Account & Failover Pool Configuration */}
         {step === 3 && (
           <div className="space-y-6">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
               <div>
-                <div className="flex items-center space-x-2 mb-1">
+                <div className="flex items-center space-x-2 mb-1.5">
                   <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300 font-medium border border-blue-200 dark:border-blue-700">
-                    Cascading Failover Pool
+                    Which Accounts to Use
+                  </span>
+                  <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-medium border border-emerald-200 dark:border-emerald-800">
+                    Failover Cascade
                   </span>
                 </div>
                 <h2 className="heading-500 text-2xl font-medium tracking-tight text-[var(--text-main)]">
-                  Configure Account &amp; Failover Pool
+                  Assign Accounts &amp; Failover Sequence
                 </h2>
                 <p className="paragraph-300 text-sm mt-1 font-light text-[var(--text-main)] opacity-70">
                   Select which accounts will fund this job. If the primary account runs out of quota or hits rate limits, execution transfers automatically down the cascade.
                 </p>
               </div>
 
-              {/* Quick Provider Filters */}
+              {/* Quick Actions & Provider Filters */}
               <div className="flex items-center flex-wrap gap-1.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={selectAllEligibleAccounts}
+                  className="px-2.5 py-1 rounded-lg text-xs font-medium border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 hover:bg-slate-100 dark:hover:bg-slate-900 text-[var(--text-main)] transition cursor-pointer"
+                  title="Include all eligible accounts in pool"
+                >
+                  Select All ({eligibleAccounts.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={resetToPrimaryOnly}
+                  className="px-2.5 py-1 rounded-lg text-xs font-medium border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 hover:bg-slate-100 dark:hover:bg-slate-900 text-[var(--text-main)] opacity-80 hover:opacity-100 transition cursor-pointer"
+                  title="Reset to only primary account"
+                >
+                  Primary Only
+                </button>
                 {Array.from(new Set(eligibleAccounts.map((a) => a.providerId))).map((pId) => {
                   const providerAccounts = eligibleAccounts.filter((a) => a.providerId === pId);
                   const isAllSelected = providerAccounts.every((a) => selectedAccountIds.includes(a.id));
@@ -507,6 +539,77 @@ export const JobWizard: React.FC<JobWizardProps> = ({
                 );
               })}
             </div>
+
+            {/* Reserved / Protected Accounts Section */}
+            {(() => {
+              const reservedAccounts = state.accounts.filter((a) => !selectedAccountIds.includes(a.id));
+              if (reservedAccounts.length === 0) return null;
+              return (
+                <div className="mt-6 pt-5 border-t border-slate-200 dark:border-slate-800">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center space-x-2">
+                      <ShieldCheck className="w-4 h-4 text-emerald-500" />
+                      <span className="text-xs font-mono uppercase tracking-wider text-[var(--text-main)] font-medium">
+                        Reserved Accounts ({reservedAccounts.length} Protected / Held Back)
+                      </span>
+                    </div>
+                    <span className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
+                      Untouched by Jobs
+                    </span>
+                  </div>
+
+                  <p className="text-xs paragraph-300 font-light text-[var(--text-main)] opacity-70 mb-3">
+                    These accounts will <strong>never</strong> be touched or drawn down by this job. Their quotas and rate limits remain 100% reserved for your direct interactive work.
+                  </p>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                    {reservedAccounts.map((account) => {
+                      const snapshot = state.snapshots.find((s) => s.accountId === account.id);
+                      const remPercent =
+                        snapshot?.windows[0]?.remainingFraction !== undefined &&
+                        snapshot?.windows[0]?.remainingFraction !== null
+                          ? Math.round(snapshot.windows[0].remainingFraction * 100)
+                          : null;
+                      return (
+                        <div
+                          key={account.id}
+                          className="p-3 rounded-xl border border-dashed border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-950/40 flex items-center justify-between"
+                        >
+                          <div className="flex items-center space-x-2.5 min-w-0">
+                            <Shield className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 shrink-0" />
+                            <div className="min-w-0">
+                              <div className="flex items-center space-x-1.5">
+                                <span className="font-medium text-xs text-[var(--text-main)] truncate">
+                                  {account.displayAlias}
+                                </span>
+                                <span className="text-[9px] font-mono uppercase opacity-50">
+                                  ({account.providerId})
+                                </span>
+                              </div>
+                              <span className="text-[11px] font-mono text-[var(--text-main)] opacity-60">
+                                {remPercent !== null ? `${remPercent}% quota preserved` : 'Standby account'}
+                              </span>
+                            </div>
+                          </div>
+
+                          {account.capabilities.executeJobs && (
+                            <button
+                              type="button"
+                              onClick={() => toggleAccountSelection(account.id)}
+                              className="flex items-center space-x-1 px-2 py-1 rounded text-[11px] font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/40 border border-blue-200 dark:border-blue-800/60 transition cursor-pointer shrink-0"
+                              title="Add to failover pool"
+                            >
+                              <Plus className="w-3 h-3" />
+                              <span>Pool</span>
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
 
             <div className="pt-4 flex justify-between">
               <button

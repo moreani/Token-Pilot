@@ -94,6 +94,10 @@ export const App: React.FC = () => {
             onUseCredit={handleUseCredit}
             onSelectAccountForJob={handleSelectAccountForJob}
             onUpdateAlias={(id, alias) => clientService.updateAccountAlias(id, alias)}
+            onStartJob={() => {
+              setSelectedAccountForJob(null);
+              setActiveTab('wizard');
+            }}
           />
         )}
 

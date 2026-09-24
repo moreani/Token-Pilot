@@ -1,5 +1,5 @@
 import React from 'react';
-import { Shield, Activity, Terminal, Stethoscope, FileText, Sun, Moon } from 'lucide-react';
+import { Shield, Activity, Terminal, Stethoscope, FileText, Sun, Moon, Play } from 'lucide-react';
 
 interface NavbarProps {
   activeTab: 'dashboard' | 'wizard' | 'console' | 'result' | 'doctor' | 'audit';
@@ -48,6 +48,18 @@ export const Navbar: React.FC<NavbarProps> = ({
         >
           <Activity className="w-3.5 h-3.5" />
           <span>Dashboard</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('wizard')}
+          className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer ${
+            activeTab === 'wizard'
+              ? 'bg-blue-600 text-white shadow-xs'
+              : 'text-[var(--text-main)] opacity-70 hover:opacity-100 hover:bg-slate-200 dark:hover:bg-slate-800/60'
+          }`}
+        >
+          <Play className="w-3.5 h-3.5" />
+          <span>Work / Jobs</span>
         </button>
 
         {activeJobId && (
