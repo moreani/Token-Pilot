@@ -237,40 +237,40 @@ function realQuotaApiPlugin() {
                   display_name: displayTitle,
                   metrics: [
                     {
-                      label: '5-Hour Fast Messages',
+                      label: 'Current session',
                       used_percent: fhUsedPct,
                       remaining_percent: fhRemainingPct,
                       remaining_label: `${fhRemaining} left`,
-                      resets_at: null,
-                      reset_label: 'Resets every 5h'
+                      resets_at: claude.fhResetsAt || null,
+                      reset_label: claude.fhResetLabel
                     },
                     {
-                      label: 'Slow-Down Messages',
+                      label: 'This week',
                       used_percent: sdUsedPct,
                       remaining_percent: sdRemainingPct,
                       remaining_label: `${sdRemaining} left`,
-                      resets_at: null,
-                      reset_label: 'Resets every 5h'
+                      resets_at: claude.sdResetsAt || null,
+                      reset_label: claude.sdResetLabel
                     }
                   ],
                   windows: [
                     {
                       id: `${claude.accountId}-window-fh`,
-                      label: `5-Hour Fast Messages (${claude.fhLimit}/5h)`,
+                      label: `Current session (${claude.fhLimit} fast msg/5h)`,
                       used_percent: fhUsedPct,
                       remaining_percent: fhRemainingPct,
                       remaining_label: `${fhRemaining} left`,
-                      resets_at: null,
-                      reset_label: 'Resets every 5h'
+                      resets_at: claude.fhResetsAt || null,
+                      reset_label: claude.fhResetLabel
                     },
                     {
                       id: `${claude.accountId}-window-sd`,
-                      label: `Slow-Down Messages (${claude.sdLimit}/5h)`,
+                      label: `This week (${claude.sdLimit} msg/week)`,
                       used_percent: sdUsedPct,
                       remaining_percent: sdRemainingPct,
                       remaining_label: `${sdRemaining} left`,
-                      resets_at: null,
-                      reset_label: 'Resets every 5h'
+                      resets_at: claude.sdResetsAt || null,
+                      reset_label: claude.sdResetLabel
                     }
                   ]
                 });
