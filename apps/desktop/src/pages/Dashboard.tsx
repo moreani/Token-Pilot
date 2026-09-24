@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { RefreshCw, ShieldCheck, Cpu, HardDrive, Flame, ArrowUpDown, AlertTriangle } from 'lucide-react';
+import { RefreshCw, ShieldCheck, Cpu, HardDrive, Flame, AlertTriangle } from 'lucide-react';
+
 
 import type { Account, ClientState } from '../state/clientService.js';
 import { TopAlertBanner } from '../components/TopAlertBanner.js';
@@ -44,7 +45,6 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const [providerFilter, setProviderFilter] = useState<'all' | string>('all');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastRefreshedAt, setLastRefreshedAt] = useState<number | null>(null);
-  const [sortBy, setSortBy] = useState<'default' | 'lowest'>('default');
   const autoRefreshRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const lastRefreshedLabel = useTimeSince(lastRefreshedAt);
@@ -86,23 +86,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
     return (primary.remainingFraction ?? 1) < 0.15;
   });
 
-  // Sort accounts within each provider group
-  const sortAccounts = (accounts: Account[]) => {
-    if (sortBy === 'lowest') {
-      return [...accounts].sort((a, b) => {
-        const snapA = state.snapshots.find((s) => s.accountId === a.id);
-        const snapB = state.snapshots.find((s) => s.accountId === b.id);
-        const remA = snapA?.windows[0]?.remainingFraction ?? 1;
-        const remB = snapB?.windows[0]?.remainingFraction ?? 1;
-        return remA - remB; // lowest first
-      });
-    }
-    return accounts;
-  };
-
   const accountsByProvider = filteredProviders.map((p) => ({
     provider: p,
-    accounts: sortAccounts(state.accounts.filter((a) => a.providerId === p.id))
+    accounts: state.accounts.filter((a) => a.providerId === p.id)
   }));
 
   const totalAccounts = state.accounts.length;
@@ -112,6 +98,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
     <div className="max-w-7xl mx-auto px-6 py-6">
       {/* Top Banner Recommendation */}
       <TopAlertBanner suggestion={state.suggestion} onUseCredit={onUseCredit} />
+
 
 
       {/* Low Quota Warning Banner */}
@@ -197,22 +184,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
         </div>
 
         <div className="flex items-center space-x-2">
-          {/* Sort toggle */}
-          <button
-            onClick={() => setSortBy((prev) => prev === 'default' ? 'lowest' : 'default')}
-            className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition cursor-pointer ${
-              sortBy === 'lowest'
-                ? 'bg-blue-600 text-white border-blue-600'
-                : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border-slate-300 dark:border-slate-700 text-[var(--text-main)]'
-            }`}
-            title="Sort by lowest quota first"
-          >
-            <ArrowUpDown className="w-3.5 h-3.5" />
-            <span>{sortBy === 'lowest' ? 'Lowest First' : 'Sort'}</span>
-          </button>
-
           {/* Refresh button with last-refreshed label */}
           <div className="flex flex-col items-end">
+
             <button
               onClick={handleRefresh}
               disabled={isRefreshing}
