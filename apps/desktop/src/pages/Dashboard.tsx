@@ -78,12 +78,11 @@ export const Dashboard: React.FC<DashboardProps> = ({
     ? activeProviders
     : activeProviders.filter((p) => p.id === providerFilter);
 
-  // Low quota accounts (< 15% remaining on primary window)
+  // Low quota accounts (<= 15% remaining on any window/model group)
   const lowQuotaAccounts = state.accounts.filter((acc) => {
     const snap = state.snapshots.find((s) => s.accountId === acc.id);
-    const primary = snap?.windows[0];
-    if (!primary) return false;
-    return (primary.remainingFraction ?? 1) < 0.15;
+    if (!snap?.windows || snap.windows.length === 0) return false;
+    return snap.windows.some((w) => (w.remainingFraction ?? 1) <= 0.15) || snap.recommendation === 'conserve';
   });
 
   const accountsByProvider = filteredProviders.map((p) => ({
@@ -109,9 +108,11 @@ export const Dashboard: React.FC<DashboardProps> = ({
             <span className="font-semibold">Low quota alert: </span>
             {lowQuotaAccounts.map((a) => {
               const snap = state.snapshots.find((s) => s.accountId === a.id);
-              const pct = Math.round((snap?.windows[0]?.remainingFraction ?? 0) * 100);
+              const minWin = snap?.windows?.reduce((min, w) => (((w.remainingFraction ?? 1) < (min.remainingFraction ?? 1)) ? w : min), snap.windows[0]);
+              const pct = Math.round((minWin?.remainingFraction ?? 0) * 100);
               const name = a.displayAlias.split('•')[0].split('(')[0].trim();
-              return `${name} (${pct}% left)`;
+              const label = minWin?.label?.toLowerCase().includes('claude') ? 'Claude 0%' : `${pct}% left`;
+              return `${name} (${label})`;
             }).join(' · ')}
           </div>
         </div>
@@ -231,7 +232,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
             .filter((a) => a.providerId === p.id)
             .some((a) => {
               const snap = state.snapshots.find((s) => s.accountId === a.id);
-              return (snap?.windows[0]?.remainingFraction ?? 1) < 0.15;
+              return snap?.windows?.some((w) => (w.remainingFraction ?? 1) <= 0.15) || snap?.recommendation === 'conserve';
             });
           return (
             <button

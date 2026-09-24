@@ -281,10 +281,61 @@ export async function fetchAntigravityAccountQuota(acc: StoredAccount): Promise<
     }
   }
 
+  const parsedData = parseAntigravityModelsData(rawData, acc.cachedQuota);
+
+  return {
+    accountId: acc.id,
+    email: acc.email,
+    name: acc.name,
+    ...parsedData
+  };
+}
+
+export function parseModelQuotaFraction(
+  quotaInfo?: { remainingFraction?: number; resetTime?: string },
+  cachedModelQuota?: { percentage?: number; resetTime?: string }
+): { fraction: number; percentage: number; resetTime?: string } {
+  let fraction = 1.0;
+  let resetTime = quotaInfo?.resetTime;
+
+  if (quotaInfo) {
+    // In Google Cloud Proto3 JSON serialization, scalar zero values (0, 0.0) are omitted!
+    // Therefore, if quotaInfo object is present but remainingFraction is undefined or null, the actual value is strictly 0.0!
+    fraction = quotaInfo.remainingFraction !== undefined && quotaInfo.remainingFraction !== null
+      ? Math.max(0, Math.min(1.0, quotaInfo.remainingFraction))
+      : 0.0;
+  } else if (cachedModelQuota) {
+    if (cachedModelQuota.percentage !== undefined && cachedModelQuota.percentage !== null) {
+      fraction = Math.max(0, Math.min(1.0, cachedModelQuota.percentage / 100));
+    }
+    if (!resetTime && cachedModelQuota.resetTime) {
+      resetTime = cachedModelQuota.resetTime;
+    }
+  }
+
+  const percentage = Math.round(fraction * 100);
+  return { fraction, percentage, resetTime };
+}
+
+export function parseAntigravityModelsData(
+  rawData: RawFetchModelsResponse | null,
+  cachedQuota?: any
+): {
+  geminiWeeklyPercent: number;
+  geminiWeeklyReset: string;
+  geminiFiveHourPercent: number;
+  geminiFiveHourReset: string;
+  claudeWeeklyPercent: number;
+  claudeWeeklyReset: string;
+  claudeFiveHourPercent: number;
+  claudeFiveHourReset: string;
+  modelGroups: ModelGroupQuota[];
+  modelDetails: ModelQuotaDetail[];
+} {
   // Fallback to AGM local cached quota if API didn't return models
-  if ((!rawData || !rawData.models || Object.keys(rawData.models).length === 0) && acc.cachedQuota?.models) {
+  if ((!rawData || !rawData.models || Object.keys(rawData.models).length === 0) && cachedQuota?.models) {
     const fallbackModels: Record<string, any> = {};
-    for (const [mId, mObj] of Object.entries(acc.cachedQuota.models as Record<string, any>)) {
+    for (const [mId, mObj] of Object.entries(cachedQuota.models as Record<string, any>)) {
       fallbackModels[mId] = {
         displayName: mObj.display_name || mId,
         supportsThinking: mObj.supports_thinking,
@@ -300,49 +351,34 @@ export async function fetchAntigravityAccountQuota(acc: StoredAccount): Promise<
   const modelsMap = rawData?.models || {};
 
   // Seed baseline fractions from cached quota if present, otherwise default to full
-  let geminiWeeklyFraction = acc.cachedQuota?.models?.['gemini-3.8-flash-medium']?.percentage !== undefined
-    ? acc.cachedQuota.models['gemini-3.8-flash-medium'].percentage / 100
+  let geminiWeeklyFraction = cachedQuota?.models?.['gemini-3.8-flash-medium']?.percentage !== undefined
+    ? cachedQuota.models['gemini-3.8-flash-medium'].percentage / 100
     : 1.0;
-  let geminiWeeklyResetIso: string | undefined = acc.cachedQuota?.models?.['gemini-3.8-flash-medium']?.resetTime;
+  let geminiWeeklyResetIso: string | undefined = cachedQuota?.models?.['gemini-3.8-flash-medium']?.resetTime;
 
-  let geminiFiveHourFraction = acc.cachedQuota?.models?.['gemini-3.1-pro-low']?.percentage !== undefined
-    ? acc.cachedQuota.models['gemini-3.1-pro-low'].percentage / 100
+  let geminiFiveHourFraction = cachedQuota?.models?.['gemini-3.1-pro-low']?.percentage !== undefined
+    ? cachedQuota.models['gemini-3.1-pro-low'].percentage / 100
     : 1.0;
-  let geminiFiveHourResetIso: string | undefined = acc.cachedQuota?.models?.['gemini-3.1-pro-low']?.resetTime;
+  let geminiFiveHourResetIso: string | undefined = cachedQuota?.models?.['gemini-3.1-pro-low']?.resetTime;
 
-  let claudeWeeklyFraction = acc.cachedQuota?.models?.['claude-sonnet-4-6']?.percentage !== undefined
-    ? acc.cachedQuota.models['claude-sonnet-4-6'].percentage / 100
+  let claudeWeeklyFraction = cachedQuota?.models?.['claude-sonnet-4-6']?.percentage !== undefined
+    ? cachedQuota.models['claude-sonnet-4-6'].percentage / 100
     : 1.0;
-  let claudeWeeklyResetIso: string | undefined = acc.cachedQuota?.models?.['claude-sonnet-4-6']?.resetTime;
+  let claudeWeeklyResetIso: string | undefined = cachedQuota?.models?.['claude-sonnet-4-6']?.resetTime;
 
-  let claudeFiveHourFraction = acc.cachedQuota?.models?.['claude-opus-4-6-thinking']?.percentage !== undefined
-    ? acc.cachedQuota.models['claude-opus-4-6-thinking'].percentage / 100
+  let claudeFiveHourFraction = cachedQuota?.models?.['claude-opus-4-6-thinking']?.percentage !== undefined
+    ? cachedQuota.models['claude-opus-4-6-thinking'].percentage / 100
     : 1.0;
-  let claudeFiveHourResetIso: string | undefined = acc.cachedQuota?.models?.['claude-opus-4-6-thinking']?.resetTime;
+  let claudeFiveHourResetIso: string | undefined = cachedQuota?.models?.['claude-opus-4-6-thinking']?.resetTime;
 
   const modelDetails: ModelQuotaDetail[] = [];
 
   for (const [modelId, entry] of Object.entries(modelsMap)) {
-    // In Google Cloud Proto3 JSON serialization, 0 / 0.0 values are omitted!
-    // So if quotaInfo is present but remainingFraction is omitted/undefined, the actual value is 0!
-    let fraction = 1.0;
-    let resetTime = entry.quotaInfo?.resetTime;
+    const { fraction, percentage, resetTime } = parseModelQuotaFraction(
+      entry.quotaInfo,
+      cachedQuota?.models?.[modelId]
+    );
 
-    if (entry.quotaInfo) {
-      fraction = entry.quotaInfo.remainingFraction !== undefined
-        ? entry.quotaInfo.remainingFraction
-        : 0;
-    } else if (acc.cachedQuota?.models?.[modelId]) {
-      const cached = acc.cachedQuota.models[modelId];
-      if (cached.percentage !== undefined) {
-        fraction = cached.percentage / 100;
-      }
-      if (!resetTime && cached.resetTime) {
-        resetTime = cached.resetTime;
-      }
-    }
-
-    const percentage = Math.round(fraction * 100);
     const displayName = entry.displayName || modelId;
     const idLower = modelId.toLowerCase();
 
@@ -411,9 +447,6 @@ export async function fetchAntigravityAccountQuota(acc: StoredAccount): Promise<
   ];
 
   return {
-    accountId: acc.id,
-    email: acc.email,
-    name: acc.name,
     geminiWeeklyPercent,
     geminiWeeklyReset,
     geminiFiveHourPercent,
