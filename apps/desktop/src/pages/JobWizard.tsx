@@ -172,10 +172,12 @@ export const JobWizard: React.FC<JobWizardProps> = ({
 
   // Job Authorization State
   const [createdJobId, setCreatedJobId] = useState<string | null>(null);
+  const [launchError, setLaunchError] = useState<string | null>(null);
 
   // Step 6: Authorize & Run Job
   const handleFinalRunJob = () => {
     try {
+      setLaunchError(null);
       const accountPool = selectedAccounts.map((acc, idx) => ({
         accountId: acc.id,
         providerId: acc.providerId,
@@ -196,10 +198,24 @@ export const JobWizard: React.FC<JobWizardProps> = ({
         accountPool
       });
 
+      setCreatedJobId(job.id);
+
+      // Execute preflight checks to transition state from DRAFT -> AWAITING_CONFIRMATION
+      const preflight = clientService.runPreflight(job.id);
+      if (!preflight.ok) {
+        const failedChecks = preflight.checks
+          ?.filter((c: any) => !c.ok)
+          .map((c: any) => c.message)
+          .join('; ');
+        throw new Error(`Preflight checks failed: ${failedChecks || 'validation failed'}`);
+      }
+
+      // Now authorize the job: AWAITING_CONFIRMATION -> AUTHORIZED & initiate execution
       clientService.authorizeJob(job.id);
       onLaunchJob(job.id);
     } catch (err: any) {
       console.error('Failed to launch R&D build job:', err);
+      setLaunchError(err.message || 'Failed to authorize and launch R&D build job');
     }
   };
 
@@ -990,6 +1006,12 @@ export const JobWizard: React.FC<JobWizardProps> = ({
 
               {/* Primary Authorization CTA */}
               <div className="pt-2">
+                {launchError && (
+                  <div className="mb-4 p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400 text-xs flex items-center space-x-2">
+                    <AlertTriangle className="w-4 h-4 shrink-0 text-rose-500" />
+                    <span>{launchError}</span>
+                  </div>
+                )}
                 <button
                   onClick={handleFinalRunJob}
                   className="w-full py-4 rounded-xl text-base font-medium uppercase tracking-wider bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 shadow-xl shadow-emerald-500/20 transition transform active:scale-[0.98] cursor-pointer flex items-center justify-center space-x-3"
