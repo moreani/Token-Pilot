@@ -7,6 +7,7 @@ export interface ProviderCapabilities {
   directApi: boolean;
   cli: boolean;
   supportsPaidOverageDetection: boolean;
+  autoModeEligible?: boolean;
 }
 
 export interface Provider {
@@ -29,4 +30,7 @@ export interface Account {
   lastSeenAt: string | null;
   enabled: boolean;
   photoUrl?: string;
+  manualOnly?: boolean;
+  autoPriority?: number;
 }
+

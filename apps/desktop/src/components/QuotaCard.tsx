@@ -78,6 +78,8 @@ export const QuotaCard: React.FC<QuotaCardProps> = ({
   const isConserve = snapshot?.recommendation === 'conserve';
   const hasModelGroups = snapshot?.modelGroups && snapshot.modelGroups.length > 0;
   const isLowQuota = remainingPercent !== null && remainingPercent < 15;
+  const isManualOnly = account.manualOnly || account.providerId === 'claude' || account.providerId === 'codex';
+  const isAutoEligible = (account.providerId === 'antigravity' || account.providerId === 'opencode') && !isManualOnly;
 
   // Codex reset credit badge
   const resetCredit = (account as any)._resetCreditCount as number | undefined;
@@ -206,8 +208,18 @@ export const QuotaCard: React.FC<QuotaCardProps> = ({
             </div>
           </div>
 
-          {/* Recommendation Badge + Credit Badge */}
+          {/* Recommendation Badge + Credit Badge + Mode Badge */}
           <div className="flex items-center space-x-1.5 shrink-0 flex-wrap gap-y-1">
+            {isManualOnly && (
+              <span className="flex items-center space-x-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-medium bg-purple-500/15 text-purple-700 dark:text-purple-300 border border-purple-500/30" title="Manual development only. Excluded from automated background runs.">
+                <span>MANUAL ONLY</span>
+              </span>
+            )}
+            {isAutoEligible && (
+              <span className="flex items-center space-x-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-medium bg-cyan-500/15 text-cyan-800 dark:text-cyan-300 border border-cyan-500/30" title={account.providerId === 'antigravity' ? 'Primary auto-mode provider (Rank 1)' : 'Secondary auto-mode provider (Rank 2)'}>
+                <span>{account.providerId === 'antigravity' ? 'AUTO #1' : 'AUTO #2'}</span>
+              </span>
+            )}
             {isLowQuota && !isBurn && !isConserve && (
               <span className="flex items-center space-x-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/30">
                 <AlertCircle className="w-3 h-3 text-rose-500" />
@@ -587,15 +599,28 @@ export const QuotaCard: React.FC<QuotaCardProps> = ({
           }`}>
             {account.capabilities.executeJobs ? 'RUN ✓' : 'RUN —'}
           </span>
+          {isManualOnly ? (
+            <span className="px-1.5 py-0.5 rounded bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800/60">
+              MANUAL
+            </span>
+          ) : isAutoEligible ? (
+            <span className="px-1.5 py-0.5 rounded bg-cyan-50 dark:bg-cyan-950/60 text-cyan-800 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800/60">
+              {account.providerId === 'antigravity' ? 'AUTO #1' : 'AUTO #2'}
+            </span>
+          ) : null}
         </div>
 
         {account.capabilities.executeJobs ? (
           <button
             onClick={() => onSelectForJob(account)}
-            className="flex items-center space-x-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-600 hover:bg-blue-500 text-white shadow-sm transition active:scale-95 cursor-pointer"
+            className={`flex items-center space-x-1 px-3 py-1.5 rounded-lg text-xs font-medium ${
+              isManualOnly
+                ? 'bg-purple-700 hover:bg-purple-600 text-white shadow-purple-900/20'
+                : 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-900/20'
+            } shadow-sm transition active:scale-95 cursor-pointer`}
           >
             <Play className="w-3 h-3 fill-current" />
-            <span>Run Job</span>
+            <span>{isManualOnly ? 'Manual Run' : 'Run Job'}</span>
           </button>
         ) : (
           <span className="paragraph-300 text-[11px] font-light text-[var(--text-main)] opacity-60 italic">Monitor Only</span>

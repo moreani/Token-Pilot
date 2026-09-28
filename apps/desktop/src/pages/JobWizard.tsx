@@ -113,8 +113,25 @@ export const JobWizard: React.FC<JobWizardProps> = ({
 
   // Account Pool State
   const eligibleAccounts = state.accounts.filter((a) => a.capabilities.executeJobs);
+
+  // Auto-mode eligible accounts: Antigravity first (Priority 1), then OpenCode (Priority 2)
+  const autoModeAccounts = eligibleAccounts
+    .filter((a) => (a.providerId === 'antigravity' || a.providerId === 'opencode') && !a.manualOnly)
+    .sort((a, b) => {
+      const priorityOrder: Record<string, number> = { antigravity: 1, opencode: 2 };
+      const pA = priorityOrder[a.providerId] ?? 99;
+      const pB = priorityOrder[b.providerId] ?? 99;
+      return pA - pB;
+    });
+
+  // Manual-only accounts: Claude & Codex
+  const manualOnlyAccounts = eligibleAccounts.filter(
+    (a) => a.manualOnly || a.providerId === 'claude' || a.providerId === 'codex'
+  );
+
   const defaultAccount =
     initialAccount ||
+    autoModeAccounts[0] ||
     eligibleAccounts.find((a) => a.id === state.suggestion?.recommendedAccountId) ||
     eligibleAccounts[0];
 
@@ -122,6 +139,12 @@ export const JobWizard: React.FC<JobWizardProps> = ({
   const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>(
     defaultAccount ? [defaultAccount.id] : []
   );
+
+  const selectAutoModePool = () => {
+    if (autoModeAccounts.length > 0) {
+      setSelectedAccountIds(autoModeAccounts.map((a) => a.id));
+    }
+  };
 
   // Preflight & Authorization
   const [createdJobId, setCreatedJobId] = useState<string | null>(null);
@@ -460,42 +483,33 @@ export const JobWizard: React.FC<JobWizardProps> = ({
                 </p>
               </div>
 
-              {/* Quick Actions & Provider Filters */}
+              {/* Quick Actions & Auto Mode */}
               <div className="flex items-center flex-wrap gap-1.5 shrink-0">
                 <button
                   type="button"
-                  onClick={selectAllEligibleAccounts}
-                  className="px-2.5 py-1 rounded-lg text-xs font-medium border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 hover:bg-slate-100 dark:hover:bg-slate-900 text-[var(--text-main)] transition cursor-pointer"
-                  title="Include all eligible accounts in pool"
+                  onClick={selectAutoModePool}
+                  className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-cyan-500/50 bg-cyan-500/10 text-cyan-800 dark:text-cyan-300 hover:bg-cyan-500/20 transition cursor-pointer shadow-xs"
+                  title="Configure Auto-Mode: Antigravity accounts first, followed by OpenCode. Strictly excludes Claude & Codex."
                 >
-                  Select All ({eligibleAccounts.length})
+                  <Zap className="w-3.5 h-3.5 fill-cyan-500" />
+                  <span>Auto Mode: Antigravity → OpenCode ({autoModeAccounts.length})</span>
                 </button>
                 <button
                   type="button"
                   onClick={resetToPrimaryOnly}
-                  className="px-2.5 py-1 rounded-lg text-xs font-medium border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 hover:bg-slate-100 dark:hover:bg-slate-900 text-[var(--text-main)] opacity-80 hover:opacity-100 transition cursor-pointer"
+                  className="px-2.5 py-1.5 rounded-lg text-xs font-medium border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 hover:bg-slate-100 dark:hover:bg-slate-900 text-[var(--text-main)] opacity-80 hover:opacity-100 transition cursor-pointer"
                   title="Reset to only primary account"
                 >
                   Primary Only
                 </button>
-                {Array.from(new Set(eligibleAccounts.map((a) => a.providerId))).map((pId) => {
-                  const providerAccounts = eligibleAccounts.filter((a) => a.providerId === pId);
-                  const isAllSelected = providerAccounts.every((a) => selectedAccountIds.includes(a.id));
-                  return (
-                    <button
-                      key={pId}
-                      type="button"
-                      onClick={() => selectAllProviderAccounts(pId)}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition cursor-pointer ${
-                        isAllSelected
-                          ? 'bg-blue-600 text-white border-blue-600'
-                          : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-[var(--text-main)] hover:bg-slate-100 dark:hover:bg-slate-900'
-                      }`}
-                    >
-                      {isAllSelected ? `✓ ${pId.toUpperCase()}` : `+ ${pId.toUpperCase()}`}
-                    </button>
-                  );
-                })}
+                <button
+                  type="button"
+                  onClick={selectAllEligibleAccounts}
+                  className="px-2.5 py-1.5 rounded-lg text-xs font-medium border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 hover:bg-slate-100 dark:hover:bg-slate-900 text-[var(--text-main)] opacity-70 hover:opacity-100 transition cursor-pointer"
+                  title="Include all eligible accounts in pool"
+                >
+                  All ({eligibleAccounts.length})
+                </button>
               </div>
             </div>
 
@@ -566,13 +580,17 @@ export const JobWizard: React.FC<JobWizardProps> = ({
               </div>
             )}
 
-            {/* Account Selection Checkboxes */}
+            {/* 1. Automated Accounts (Antigravity First, OpenCode Second) */}
             <div className="space-y-2.5">
-              <div className="text-xs font-mono uppercase tracking-wider text-[var(--text-main)] opacity-70 mb-1">
-                Available Accounts (Check to include in Failover Pool)
+              <div className="flex items-center justify-between text-xs font-mono uppercase tracking-wider text-[var(--text-main)] mb-1">
+                <span className="flex items-center space-x-1.5 text-cyan-600 dark:text-cyan-400 font-semibold">
+                  <Zap className="w-3.5 h-3.5 fill-current" />
+                  <span>Auto-Mode Sequence (Antigravity First → OpenCode Second)</span>
+                </span>
+                <span className="text-[10px] opacity-60">Auto Priority: 1. Antigravity | 2. OpenCode</span>
               </div>
 
-              {eligibleAccounts.map((account) => {
+              {autoModeAccounts.map((account) => {
                 const snapshot = state.snapshots.find((s) => s.accountId === account.id);
                 const isSelected = selectedAccountIds.includes(account.id);
                 const priorityIndex = selectedAccountIds.indexOf(account.id);
@@ -583,6 +601,7 @@ export const JobWizard: React.FC<JobWizardProps> = ({
                     ? Math.round(snapshot.windows[0].remainingFraction * 100)
                     : null;
                 const tier = remPercent !== null ? getQuotaRangeTier(remPercent) : null;
+                const autoRank = account.providerId === 'antigravity' ? 'AUTO #1' : 'AUTO #2';
 
                 return (
                   <div
@@ -590,14 +609,14 @@ export const JobWizard: React.FC<JobWizardProps> = ({
                     onClick={() => toggleAccountSelection(account.id)}
                     className={`p-3.5 rounded-xl border flex items-center justify-between cursor-pointer transition ${
                       isSelected
-                        ? 'border-blue-500 bg-blue-500/5 dark:bg-blue-500/10'
-                        : 'border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 hover:border-slate-300 dark:hover:border-slate-700 opacity-60 hover:opacity-100'
+                        ? 'border-cyan-500 bg-cyan-500/5 dark:bg-cyan-500/10'
+                        : 'border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 hover:border-slate-300 dark:hover:border-slate-700 opacity-70 hover:opacity-100'
                     }`}
                   >
                     <div className="flex items-center space-x-3 min-w-0">
                       <div
                         className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${
-                          isSelected ? 'border-blue-500 bg-blue-600 text-white' : 'border-slate-300 dark:border-slate-600'
+                          isSelected ? 'border-cyan-500 bg-cyan-600 text-white' : 'border-slate-300 dark:border-slate-600'
                         }`}
                       >
                         {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
@@ -608,9 +627,12 @@ export const JobWizard: React.FC<JobWizardProps> = ({
                           <span className="heading-500 font-medium text-sm text-[var(--text-main)] truncate">
                             {account.displayAlias}
                           </span>
+                          <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-cyan-100 dark:bg-cyan-900/60 text-cyan-800 dark:text-cyan-300 font-semibold shrink-0">
+                            {autoRank}
+                          </span>
                           {isSelected && (
                             <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-blue-100 dark:bg-blue-900/80 text-blue-800 dark:text-blue-300 font-medium shrink-0">
-                              #{priorityIndex + 1}
+                              Pool #{priorityIndex + 1}
                             </span>
                           )}
                           {isRecommended && (
@@ -637,6 +659,85 @@ export const JobWizard: React.FC<JobWizardProps> = ({
                 );
               })}
             </div>
+
+            {/* 2. Manual-Only Accounts (Claude & Codex) */}
+            {manualOnlyAccounts.length > 0 && (
+              <div className="space-y-2.5 pt-4 border-t border-slate-200 dark:border-slate-800">
+                <div className="flex items-start justify-between text-xs mb-1">
+                  <div>
+                    <span className="flex items-center space-x-1.5 text-purple-600 dark:text-purple-400 font-semibold font-mono uppercase tracking-wider">
+                      <Shield className="w-3.5 h-3.5" />
+                      <span>Manual-Use Only (Claude &amp; Codex — User Opt-In Only)</span>
+                    </span>
+                    <p className="text-[11px] paragraph-300 font-light text-[var(--text-main)] opacity-60 mt-0.5">
+                      Protected from automated background runs and failovers. Check an account below only if you explicitly want to opt it in for this specific job.
+                    </p>
+                  </div>
+                </div>
+
+                {manualOnlyAccounts.map((account) => {
+                  const snapshot = state.snapshots.find((s) => s.accountId === account.id);
+                  const isSelected = selectedAccountIds.includes(account.id);
+                  const priorityIndex = selectedAccountIds.indexOf(account.id);
+                  const remPercent =
+                    snapshot?.windows[0]?.remainingFraction !== undefined &&
+                    snapshot?.windows[0]?.remainingFraction !== null
+                      ? Math.round(snapshot.windows[0].remainingFraction * 100)
+                      : null;
+                  const tier = remPercent !== null ? getQuotaRangeTier(remPercent) : null;
+
+                  return (
+                    <div
+                      key={account.id}
+                      onClick={() => toggleAccountSelection(account.id)}
+                      className={`p-3.5 rounded-xl border flex items-center justify-between cursor-pointer transition ${
+                        isSelected
+                          ? 'border-purple-500 bg-purple-500/5 dark:bg-purple-500/10'
+                          : 'border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/40 hover:border-purple-300 dark:hover:border-purple-800 opacity-60 hover:opacity-90'
+                      }`}
+                    >
+                      <div className="flex items-center space-x-3 min-w-0">
+                        <div
+                          className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${
+                            isSelected ? 'border-purple-500 bg-purple-600 text-white' : 'border-slate-300 dark:border-slate-600'
+                          }`}
+                        >
+                          {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                        </div>
+
+                        <div className="min-w-0">
+                          <div className="flex items-center space-x-2">
+                            <span className="heading-500 font-medium text-sm text-[var(--text-main)] truncate">
+                              {account.displayAlias}
+                            </span>
+                            <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-purple-100 dark:bg-purple-950/80 text-purple-800 dark:text-purple-300 font-semibold shrink-0">
+                              MANUAL ONLY
+                            </span>
+                            {isSelected && (
+                              <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 font-medium border border-amber-300 dark:border-amber-700 shrink-0">
+                                OPTED-IN (#{priorityIndex + 1})
+                              </span>
+                            )}
+                            {tier && (
+                              <span className={`text-[10px] font-medium px-1.5 py-0.2 rounded border ${tier.badgeBg} ${tier.badgeText} ${tier.badgeBorder} shrink-0`}>
+                                {tier.label}
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-xs font-mono paragraph-300 font-light text-[var(--text-main)] opacity-70">
+                            {remPercent !== null ? `${remPercent}% quota remaining` : 'Active account'}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="text-right font-mono text-xs paragraph-300 font-light text-[var(--text-main)] opacity-70 shrink-0 ml-2">
+                        {account.providerId.toUpperCase()}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
 
             {/* Reserved / Protected Accounts Section */}
             {(() => {
@@ -875,6 +976,16 @@ export const JobWizard: React.FC<JobWizardProps> = ({
                 <p className="text-xs leading-relaxed bg-white dark:bg-slate-950/80 p-3 rounded-xl border border-amber-200 dark:border-slate-800">
                   🛡️ <strong>Sandbox Safety Statement:</strong> Unknown code may execute inside an isolated sandbox. It cannot access your normal files, SSH keys, or private repositories.
                 </p>
+
+                {selectedAccounts.some((a) => a.providerId === 'claude' || a.providerId === 'codex') ? (
+                  <p className="text-xs text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/60 p-3 rounded-xl border border-purple-200 dark:border-purple-800">
+                    ℹ️ <strong>Manual Opt-In Detected:</strong> This execution pool includes manual-only account(s) (Claude / Codex) explicitly checked by you.
+                  </p>
+                ) : (
+                  <p className="text-xs text-cyan-800 dark:text-cyan-300 bg-cyan-50 dark:bg-cyan-950/60 p-3 rounded-xl border border-cyan-200 dark:border-cyan-800">
+                    ⚡ <strong>Auto-Mode Active:</strong> Execution uses <strong>Antigravity</strong> first, then <strong>OpenCode</strong>. Claude and Codex subscriptions are strictly preserved for manual use.
+                  </p>
+                )}
               </div>
 
 

@@ -281,6 +281,10 @@ export class RealQuotaSource implements QuotaSource {
         const accountId = item.email ? `${providerId}-${item.email}` : `${providerId}-${item.plan.toLowerCase()}`;
         const displayAlias = item.email ? `${item.provider} (${item.email})` : `${item.provider} — ${item.plan}`;
 
+        const isAutoEligible = providerId === 'antigravity' || providerId.includes('opencode');
+        const isManualOnly = providerId.includes('claude') || providerId.includes('codex') || providerId.includes('cursor') || providerId.includes('warp');
+        const autoPriority = providerId === 'antigravity' ? 1 : providerId.includes('opencode') ? 2 : undefined;
+
         accounts.push({
           id: accountId,
           providerId: providerId.includes('codex') ? 'codex' : providerId.includes('opencode') ? 'opencode' : providerId,
@@ -294,8 +298,11 @@ export class RealQuotaSource implements QuotaSource {
             switchAccount: false,
             directApi: true,
             cli: true,
-            supportsPaidOverageDetection: true
+            supportsPaidOverageDetection: true,
+            autoModeEligible: isAutoEligible
           },
+          manualOnly: isManualOnly,
+          autoPriority,
           authStatus: 'ready',
           lastSeenAt: nowIso,
           enabled: true
@@ -409,14 +416,26 @@ export class RealQuotaSource implements QuotaSource {
     const snapshots = await this.snapshot();
     const accounts = await this.getRealAccounts();
 
-    // Find accounts with burn recommendation and executeJobs = true
+    // In auto mode: strictly exclude manual-only providers (Claude, Codex)
+    // Priority order: 1. Antigravity first, 2. OpenCode second
     const candidates = snapshots.filter((s) => {
       const acc = accounts.find((a) => a.id === s.accountId);
-      return acc?.capabilities.executeJobs;
+      return (
+        acc?.capabilities.executeJobs &&
+        s.providerId !== 'claude' &&
+        s.providerId !== 'codex' &&
+        (s.providerId === 'antigravity' || s.providerId === 'opencode')
+      );
     });
 
-    // Sort by remaining fraction descending
+    // Sort by priority order: Antigravity (1) > OpenCode (2), then burn recommendation, then remaining fraction descending
     candidates.sort((a, b) => {
+      const priorityOrder: Record<string, number> = { antigravity: 1, opencode: 2 };
+      const pA = priorityOrder[a.providerId] ?? 99;
+      const pB = priorityOrder[b.providerId] ?? 99;
+      if (pA !== pB) return pA - pB;
+      if (a.recommendation === 'burn' && b.recommendation !== 'burn') return -1;
+      if (b.recommendation === 'burn' && a.recommendation !== 'burn') return 1;
       const remA = a.windows[0]?.remainingFraction ?? 0;
       const remB = b.windows[0]?.remainingFraction ?? 0;
       return remB - remA;

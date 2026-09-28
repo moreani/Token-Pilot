@@ -21,8 +21,11 @@ export class MockQuotaSource implements QuotaSource {
         switchAccount: true,
         directApi: false,
         cli: true,
-        supportsPaidOverageDetection: false
+        supportsPaidOverageDetection: false,
+        autoModeEligible: true
       },
+      manualOnly: false,
+      autoPriority: 1,
       authStatus: 'ready',
       lastSeenAt: new Date().toISOString(),
       enabled: true
@@ -40,8 +43,11 @@ export class MockQuotaSource implements QuotaSource {
         switchAccount: true,
         directApi: false,
         cli: true,
-        supportsPaidOverageDetection: false
+        supportsPaidOverageDetection: false,
+        autoModeEligible: true
       },
+      manualOnly: false,
+      autoPriority: 1,
       authStatus: 'ready',
       lastSeenAt: new Date().toISOString(),
       enabled: true
@@ -59,8 +65,33 @@ export class MockQuotaSource implements QuotaSource {
         switchAccount: true,
         directApi: false,
         cli: true,
-        supportsPaidOverageDetection: false
+        supportsPaidOverageDetection: false,
+        autoModeEligible: true
       },
+      manualOnly: false,
+      autoPriority: 1,
+      authStatus: 'ready',
+      lastSeenAt: new Date().toISOString(),
+      enabled: true
+    },
+    {
+      id: 'opencode-main',
+      providerId: 'opencode',
+      displayAlias: 'OpenCode — Go Monthly',
+      upstreamIdentities: ['opencode-user@gmail.com'],
+      capabilities: {
+        trackUsage: true,
+        remainingQuota: true,
+        resetTime: true,
+        executeJobs: true,
+        switchAccount: true,
+        directApi: true,
+        cli: true,
+        supportsPaidOverageDetection: false,
+        autoModeEligible: true
+      },
+      manualOnly: false,
+      autoPriority: 2,
       authStatus: 'ready',
       lastSeenAt: new Date().toISOString(),
       enabled: true
@@ -78,8 +109,10 @@ export class MockQuotaSource implements QuotaSource {
         switchAccount: true,
         directApi: true,
         cli: true,
-        supportsPaidOverageDetection: true
+        supportsPaidOverageDetection: true,
+        autoModeEligible: false
       },
+      manualOnly: true,
       authStatus: 'ready',
       lastSeenAt: new Date().toISOString(),
       enabled: true
@@ -97,8 +130,10 @@ export class MockQuotaSource implements QuotaSource {
         switchAccount: true,
         directApi: true,
         cli: true,
-        supportsPaidOverageDetection: true
+        supportsPaidOverageDetection: true,
+        autoModeEligible: false
       },
+      manualOnly: true,
       authStatus: 'ready',
       lastSeenAt: new Date().toISOString(),
       enabled: true
@@ -116,8 +151,10 @@ export class MockQuotaSource implements QuotaSource {
         switchAccount: true,
         directApi: true,
         cli: true,
-        supportsPaidOverageDetection: true
+        supportsPaidOverageDetection: true,
+        autoModeEligible: false
       },
+      manualOnly: true,
       authStatus: 'ready',
       lastSeenAt: new Date().toISOString(),
       enabled: true
@@ -135,8 +172,10 @@ export class MockQuotaSource implements QuotaSource {
         switchAccount: false,
         directApi: false,
         cli: false,
-        supportsPaidOverageDetection: false
+        supportsPaidOverageDetection: false,
+        autoModeEligible: false
       },
+      manualOnly: true,
       authStatus: 'ready',
       lastSeenAt: new Date().toISOString(),
       enabled: true

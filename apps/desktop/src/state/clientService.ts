@@ -72,7 +72,25 @@ export class ClientService {
           switchAccount: true,
           directApi: false,
           cli: true,
-          supportsPaidOverageDetection: false
+          supportsPaidOverageDetection: false,
+          autoModeEligible: true
+        }
+      },
+      {
+        id: 'opencode',
+        displayName: 'OpenCode / Codeium',
+        iconKey: 'opencode',
+        enabled: true,
+        capabilities: {
+          trackUsage: true,
+          remainingQuota: true,
+          resetTime: true,
+          executeJobs: true,
+          switchAccount: true,
+          directApi: true,
+          cli: true,
+          supportsPaidOverageDetection: false,
+          autoModeEligible: true
         }
       },
       {
@@ -88,7 +106,8 @@ export class ClientService {
           switchAccount: true,
           directApi: true,
           cli: true,
-          supportsPaidOverageDetection: true
+          supportsPaidOverageDetection: true,
+          autoModeEligible: false
         }
       },
       {
@@ -104,7 +123,8 @@ export class ClientService {
           switchAccount: true,
           directApi: true,
           cli: true,
-          supportsPaidOverageDetection: true
+          supportsPaidOverageDetection: true,
+          autoModeEligible: false
         }
       },
       {
@@ -120,7 +140,8 @@ export class ClientService {
           switchAccount: false,
           directApi: false,
           cli: false,
-          supportsPaidOverageDetection: false
+          supportsPaidOverageDetection: false,
+          autoModeEligible: false
         }
       },
       {
@@ -136,7 +157,8 @@ export class ClientService {
           switchAccount: false,
           directApi: false,
           cli: true,
-          supportsPaidOverageDetection: false
+          supportsPaidOverageDetection: false,
+          autoModeEligible: false
         }
       }
     ],
@@ -215,6 +237,10 @@ export class ClientService {
               }
             }
 
+            const isAutoEligible = providerId === 'antigravity' || providerId === 'opencode';
+            const isManualOnly = providerId === 'claude' || providerId === 'codex' || providerId === 'warp' || providerId === 'cursor';
+            const autoPriority = providerId === 'antigravity' ? 1 : providerId === 'opencode' ? 2 : undefined;
+
             accounts.push({
               id: accountId,
               providerId,
@@ -233,8 +259,11 @@ export class ClientService {
                 switchAccount: providerId === 'antigravity' || providerId === 'claude' || providerId === 'codex',
                 directApi: providerId !== 'antigravity' && providerId !== 'warp',
                 cli: true,
-                supportsPaidOverageDetection: providerId === 'codex'
+                supportsPaidOverageDetection: providerId === 'codex',
+                autoModeEligible: isAutoEligible
               },
+              manualOnly: isManualOnly,
+              autoPriority,
               authStatus: 'ready',
               lastSeenAt: nowIso,
               enabled: true
@@ -360,23 +389,50 @@ export class ClientService {
           this.state.accounts = accounts;
           this.state.snapshots = snapshots;
 
-          // Compute suggestion
-          const burnSnap = snapshots.find((s) => s.recommendation === 'burn');
-          if (burnSnap) {
-            const acc = accounts.find((a) => a.id === burnSnap.accountId);
-            const win = burnSnap.windows[0];
+          // Compute suggestion strictly in auto mode:
+          // Strictly exclude manual-only providers (Claude, Codex)
+          // Priority order: 1. Antigravity first, 2. OpenCode second
+          const autoCandidates = snapshots.filter((s) => {
+            const acc = accounts.find((a) => a.id === s.accountId);
+            return (
+              acc?.capabilities.executeJobs &&
+              s.providerId !== 'claude' &&
+              s.providerId !== 'codex' &&
+              (s.providerId === 'antigravity' || s.providerId === 'opencode')
+            );
+          });
+
+          // Sort candidates by provider priority (Antigravity 1, OpenCode 2), then burn recommendation, then remaining quota
+          autoCandidates.sort((a, b) => {
+            const priorityOrder: Record<string, number> = { antigravity: 1, opencode: 2 };
+            const pA = priorityOrder[a.providerId] ?? 99;
+            const pB = priorityOrder[b.providerId] ?? 99;
+            if (pA !== pB) return pA - pB;
+            if (a.recommendation === 'burn' && b.recommendation !== 'burn') return -1;
+            if (b.recommendation === 'burn' && a.recommendation !== 'burn') return 1;
+            const remA = a.windows[0]?.remainingFraction ?? 0;
+            const remB = b.windows[0]?.remainingFraction ?? 0;
+            return remB - remA;
+          });
+
+          const bestAutoSnap = autoCandidates[0];
+          if (bestAutoSnap) {
+            const acc = accounts.find((a) => a.id === bestAutoSnap.accountId);
+            const win = bestAutoSnap.windows[0];
             this.state.suggestion = {
-              recommendedAccountId: burnSnap.accountId,
-              providerId: burnSnap.providerId,
-              accountAlias: acc?.displayAlias || burnSnap.accountId,
-              recommendation: 'burn',
+              recommendedAccountId: bestAutoSnap.accountId,
+              providerId: bestAutoSnap.providerId,
+              accountAlias: acc?.displayAlias || bestAutoSnap.accountId,
+              recommendation: bestAutoSnap.recommendation,
               remainingFraction: win?.remainingFraction ?? 0.8,
               resetsInHours: win?.resetsAt
                 ? Math.max(1, Math.round((new Date(win.resetsAt).getTime() - Date.now()) / (1000 * 3600)))
                 : 4,
-              reason: burnSnap.recommendationReason || 'Under-used quota at risk of expiration.',
+              reason: bestAutoSnap.recommendationReason || (bestAutoSnap.providerId === 'antigravity' ? 'Primary auto-mode candidate with high capacity.' : 'Secondary auto-mode candidate.'),
               suggestedJobType: 'repo_lab'
             };
+          } else {
+            this.state.suggestion = null;
           }
 
           this.logAudit('QUOTA_REFRESHED', `Loaded real live usage from local tools (${accounts.length} accounts)`, 'info', {
@@ -434,6 +490,35 @@ export class ClientService {
       });
       this.notify();
     }
+  }
+
+  getAutoModeEligibleAccounts(): Account[] {
+    return this.state.accounts
+      .filter((a) => a.capabilities.executeJobs && (a.providerId === 'antigravity' || a.providerId === 'opencode') && !a.manualOnly)
+      .sort((a, b) => {
+        const priorityOrder: Record<string, number> = { antigravity: 1, opencode: 2 };
+        const pA = priorityOrder[a.providerId] ?? 99;
+        const pB = priorityOrder[b.providerId] ?? 99;
+        return pA - pB;
+      });
+  }
+
+  getManualOnlyAccounts(): Account[] {
+    return this.state.accounts.filter(
+      (a) => a.capabilities.executeJobs && (a.manualOnly || a.providerId === 'claude' || a.providerId === 'codex')
+    );
+  }
+
+  generateAutoAccountPool(): AccountPoolItem[] {
+    const autoAccounts = this.getAutoModeEligibleAccounts();
+    return autoAccounts.map((acc, idx) => ({
+      accountId: acc.id,
+      providerId: acc.providerId,
+      displayAlias: acc.displayAlias,
+      priority: idx + 1,
+      status: idx === 0 ? 'active' : 'standby',
+      mode: 'auto'
+    }));
   }
 
   createRepoLabJob(params: {
