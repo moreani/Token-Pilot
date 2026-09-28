@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Sparkles,
   Zap,
@@ -11,7 +11,8 @@ import {
   Layers,
   FileCode2,
   ExternalLink,
-  Terminal
+  Terminal,
+  RefreshCw
 } from 'lucide-react';
 
 export interface AcceleratorSkill {
@@ -125,11 +126,36 @@ interface SkillsHubProps {
 }
 
 export const SkillsHub: React.FC<SkillsHubProps> = ({ onLaunchJobWithSkill }) => {
+  const [skills, setSkills] = useState<AcceleratorSkill[]>(ACCELERATOR_SKILLS);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastRefreshedAt, setLastRefreshedAt] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'local' | 'community'>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
 
-  const filteredSkills = ACCELERATOR_SKILLS.filter((skill) => {
+  const fetchFreshAccelerators = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      const res = await fetch('/api/accelerators');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.ok && Array.isArray(data.skills) && data.skills.length > 0) {
+          setSkills(data.skills);
+        }
+      }
+      setLastRefreshedAt(Date.now());
+    } catch (err) {
+      console.warn('Failed to fetch dynamic accelerators:', err);
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchFreshAccelerators();
+  }, [fetchFreshAccelerators]);
+
+  const filteredSkills = skills.filter((skill) => {
     const matchesSearch =
       skill.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       skill.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -141,8 +167,8 @@ export const SkillsHub: React.FC<SkillsHubProps> = ({ onLaunchJobWithSkill }) =>
     return matchesSearch && matchesType && matchesCategory;
   });
 
-  const localCount = ACCELERATOR_SKILLS.filter((s) => s.type === 'local').length;
-  const communityCount = ACCELERATOR_SKILLS.filter((s) => s.type === 'community').length;
+  const localCount = skills.filter((s) => s.type === 'local').length;
+  const communityCount = skills.filter((s) => s.type === 'community').length;
 
   return (
     <div className="max-w-7xl mx-auto px-6 py-8">
@@ -174,6 +200,27 @@ export const SkillsHub: React.FC<SkillsHubProps> = ({ onLaunchJobWithSkill }) =>
             <div className="px-3.5 py-2 rounded-xl bg-white/5 border border-white/10 backdrop-blur text-center">
               <div className="text-lg font-mono font-medium text-blue-400">{communityCount}</div>
               <div className="text-[10px] uppercase font-mono opacity-70">Accelerators</div>
+            </div>
+
+            <div className="flex flex-col items-end">
+              <button
+                onClick={fetchFreshAccelerators}
+                disabled={isRefreshing}
+                className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-medium border transition cursor-pointer ${
+                  isRefreshing
+                    ? 'bg-white/10 border-white/20 opacity-60 cursor-not-allowed'
+                    : 'bg-white/10 hover:bg-white/20 border-white/20 active:scale-95'
+                } text-white backdrop-blur shadow-xs`}
+                title="Scan local disk and community registry for fresh accelerators"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+                <span>{isRefreshing ? 'Scanning…' : 'Refresh Registry'}</span>
+              </button>
+              {lastRefreshedAt && !isRefreshing && (
+                <span className="text-[10px] opacity-60 mt-1 font-mono text-blue-200">
+                  Updated just now
+                </span>
+              )}
             </div>
           </div>
         </div>

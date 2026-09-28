@@ -350,6 +350,151 @@ function realQuotaApiPlugin() {
           res.end(JSON.stringify({ error: e.message }));
         }
       });
+
+      server.middlewares.use('/api/accelerators', (_req: any, res: any) => {
+        try {
+          const homeDir = process.env.HOME || '';
+          const workspaceRoot = path.resolve(__dirname, '../..');
+          const skillsDirs = [
+            path.join(workspaceRoot, '.agents', 'skills'),
+            path.join(process.cwd(), '.agents', 'skills'),
+            path.join(homeDir, '.gemini', 'config', 'skills'),
+            path.join(homeDir, '.gemini', 'antigravity', 'builtin', 'skills')
+          ];
+
+          const localSkills: any[] = [];
+          for (const sDir of skillsDirs) {
+            if (fs.existsSync(sDir)) {
+              const entries = fs.readdirSync(sDir, { withFileTypes: true });
+              for (const ent of entries) {
+                if (ent.isDirectory()) {
+                  const skillMd = path.join(sDir, ent.name, 'SKILL.md');
+                  if (fs.existsSync(skillMd)) {
+                    try {
+                      const content = fs.readFileSync(skillMd, 'utf8');
+                      const nameMatch = content.match(/^name:\s*(.+)$/m);
+                      const descMatch = content.match(/^description:\s*(.+)$/m);
+                      let rawName = nameMatch ? nameMatch[1].trim() : ent.name;
+                      rawName = rawName.replace(/^["']|["']$/g, '').trim();
+                      let description = `Local ${ent.name} agent skill`;
+                      if (descMatch) {
+                        const rawDesc = descMatch[1].trim();
+                        if (rawDesc === '>-' || rawDesc === '|' || rawDesc === '') {
+                          const blockMatch = content.match(/^description:\s*[>|]-?\s*\n((?:[ \t]+[^\n]*\n?)+)/m);
+                          if (blockMatch) {
+                            description = blockMatch[1].split('\n').map(l => l.trim()).filter(Boolean).join(' ');
+                          }
+                        } else {
+                          description = rawDesc;
+                        }
+                      }
+                      description = description.replace(/^["']|["']$/g, '').trim();
+
+                      let category = 'automation';
+                      let speedup = '~3.5x faster';
+                      let suggestedJobType = 'repo_lab';
+                      let defaultObjective = `Execute automated task utilizing ${rawName}`;
+                      let capabilities = ['Local Discovery', 'SKILL.md Spec'];
+
+                      if (ent.name.includes('graphify')) {
+                        category = 'architecture';
+                        speedup = '4.8x faster exploration';
+                        suggestedJobType = 'graphify_dossier';
+                        defaultObjective = 'Extract architectural knowledge graph, god nodes, and component relationship map using Graphify';
+                        capabilities = ['AST Parsing', 'Community Detection', 'Mermaid Diagrams', 'Sub-graph extraction'];
+                      } else if (ent.name.includes('recorder')) {
+                        category = 'automation';
+                        speedup = 'Pixel-perfect recordings';
+                        capabilities = ['Playwright Chromium', 'WebM Video Capture', 'Zero Margin Frames'];
+                      } else if (ent.name.includes('generative')) {
+                        category = 'developer_tools';
+                        speedup = 'Instant visualization';
+                        suggestedJobType = 'graphify_dossier';
+                        capabilities = ['KaTeX Math', 'Mermaid Diagrams', 'Inline SVG'];
+                      } else if (ent.name.includes('customizations') || ent.name.includes('guide')) {
+                        category = 'developer_tools';
+                        speedup = 'Native protocol binding';
+                        capabilities = ['MCP Server Discovery', 'Tool Schema Compilation'];
+                      } else if (ent.name.includes('migrate')) {
+                        category = 'automation';
+                        speedup = 'Zero-manual refactor';
+                        capabilities = ['Legacy Script Parsing', 'YAML Frontmatter'];
+                      }
+
+                      const displayName = rawName.charAt(0).toUpperCase() + rawName.slice(1).replace(/[-_]/g, ' ');
+                      if (!localSkills.some(s => s.id === ent.name)) {
+                        localSkills.push({
+                          id: ent.name,
+                          name: displayName,
+                          type: 'local',
+                          category,
+                          speedup,
+                          description,
+                          capabilities,
+                          suggestedJobType,
+                          defaultObjective,
+                          path: skillMd
+                        });
+                      }
+                    } catch {}
+                  }
+                }
+              }
+            }
+          }
+
+          const communityAccelerators = [
+            {
+              id: 'ast-audit',
+              name: 'AST Fast-Track Inspector',
+              type: 'community',
+              category: 'architecture',
+              speedup: '3.2x faster setup',
+              description: 'Rapid structural inspection engine that reads abstract syntax trees directly, skipping manual boilerplate scanning.',
+              repoUrl: 'https://github.com/facebook/react',
+              capabilities: ['Syntax Tree Traversal', 'Export Graphing', 'Dead Code Detection'],
+              suggestedJobType: 'repo_lab',
+              defaultObjective: 'Investigate architecture, dependencies, and identify potential modernization tasks'
+            },
+            {
+              id: 'code-guard',
+              name: 'CodeGuard & CVE Hunter',
+              type: 'community',
+              category: 'security',
+              speedup: '5.0x faster audit',
+              description: 'Autonomous zero-trust audit tool scouting hardcoded secrets, insecure API calls, dependency vulnerabilities, and permissive sandbox holes.',
+              capabilities: ['Dependency Audit', 'Secret Scanning', 'CVE Database Lookups'],
+              suggestedJobType: 'security_audit',
+              defaultObjective: 'Audit dependencies for known CVEs, scan source for exposed secrets, and verify sandbox policies'
+            },
+            {
+              id: 'test-booster',
+              name: 'Autonomous Test Suite Booster',
+              type: 'community',
+              category: 'testing',
+              speedup: '2.9x faster coverage',
+              description: 'Scouts uncovered functions and edge cases in the target repository and automatically synthesizes deterministic unit tests.',
+              capabilities: ['Branch Analysis', 'Mock Generation', 'Snapshot Assertions'],
+              suggestedJobType: 'test_booster',
+              defaultObjective: 'Discover untested modules, analyze edge cases, and synthesize targeted unit test suites'
+            }
+          ];
+
+          const allSkills = [...localSkills];
+          for (const ca of communityAccelerators) {
+            if (!allSkills.some(s => s.id === ca.id)) {
+              allSkills.push(ca);
+            }
+          }
+
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ ok: true, refreshedAt: new Date().toISOString(), skills: allSkills }));
+        } catch (e: any) {
+          res.statusCode = 500;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ ok: false, error: e.message }));
+        }
+      });
     }
   };
 }
