@@ -129,23 +129,36 @@ export const SkillsHub: React.FC<SkillsHubProps> = ({ onLaunchJobWithSkill }) =>
   const [skills, setSkills] = useState<AcceleratorSkill[]>(ACCELERATOR_SKILLS);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastRefreshedAt, setLastRefreshedAt] = useState<number | null>(null);
+  const [justRefreshed, setJustRefreshed] = useState(false);
+  const [refreshSummary, setRefreshSummary] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'local' | 'community'>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
 
   const fetchFreshAccelerators = useCallback(async () => {
     setIsRefreshing(true);
+    setRefreshSummary(null);
+    const minDelay = new Promise((resolve) => setTimeout(resolve, 500));
     try {
-      const res = await fetch('/api/accelerators');
+      const [res] = await Promise.all([
+        fetch(`/api/accelerators?t=${Date.now()}`, { cache: 'no-store' }),
+        minDelay
+      ]);
       if (res.ok) {
         const data = await res.json();
         if (data.ok && Array.isArray(data.skills) && data.skills.length > 0) {
           setSkills(data.skills);
+          const local = data.skills.filter((s: any) => s.type === 'local').length;
+          const community = data.skills.filter((s: any) => s.type === 'community').length;
+          setRefreshSummary(`${data.skills.length} tools verified (${local} local, ${community} remote)`);
         }
       }
       setLastRefreshedAt(Date.now());
+      setJustRefreshed(true);
+      setTimeout(() => setJustRefreshed(false), 3500);
     } catch (err) {
       console.warn('Failed to fetch dynamic accelerators:', err);
+      setRefreshSummary('Scan failed');
     } finally {
       setIsRefreshing(false);
     }
@@ -202,7 +215,7 @@ export const SkillsHub: React.FC<SkillsHubProps> = ({ onLaunchJobWithSkill }) =>
               <div className="text-[10px] uppercase font-mono opacity-70">Accelerators</div>
             </div>
 
-            <div className="flex flex-col items-end">
+            <div className="flex flex-col items-end min-w-[140px]">
               <button
                 onClick={fetchFreshAccelerators}
                 disabled={isRefreshing}
@@ -214,13 +227,22 @@ export const SkillsHub: React.FC<SkillsHubProps> = ({ onLaunchJobWithSkill }) =>
                 title="Scan local disk and community registry for fresh accelerators"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
-                <span>{isRefreshing ? 'Scanning…' : 'Refresh Registry'}</span>
+                <span>{isRefreshing ? 'Scanning disk…' : 'Refresh Registry'}</span>
               </button>
-              {lastRefreshedAt && !isRefreshing && (
-                <span className="text-[10px] opacity-60 mt-1 font-mono text-blue-200">
-                  Updated just now
+              {isRefreshing ? (
+                <span className="text-[10px] opacity-75 mt-1 font-mono text-blue-300">
+                  Scanning disk…
                 </span>
-              )}
+              ) : justRefreshed && refreshSummary ? (
+                <span className="text-[10px] font-mono text-emerald-300 flex items-center gap-1 mt-1 animate-fadeIn">
+                  <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0" />
+                  <span>{refreshSummary}</span>
+                </span>
+              ) : lastRefreshedAt ? (
+                <span className="text-[10px] opacity-60 mt-1 font-mono text-blue-200">
+                  Updated {new Date(lastRefreshedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                </span>
+              ) : null}
             </div>
           </div>
         </div>
@@ -250,7 +272,7 @@ export const SkillsHub: React.FC<SkillsHubProps> = ({ onLaunchJobWithSkill }) =>
                 : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-[var(--text-main)] hover:bg-slate-50 dark:hover:bg-slate-800'
             }`}
           >
-            All Tools ({ACCELERATOR_SKILLS.length})
+            All Tools ({skills.length})
           </button>
           <button
             onClick={() => setFilterType('local')}
