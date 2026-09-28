@@ -331,12 +331,12 @@ function realQuotaApiPlugin() {
         }
       });
 
-      server.middlewares.use('/api/antigravity/oauth-url', (req: any, res: any) => {
-        const urlObj = new URL(req.url, 'http://localhost');
-        const email = urlObj.searchParams.get('email') || undefined;
-        const oauthUrl = buildGoogleOAuthUrl(email);
+      server.middlewares.use('/api/antigravity/oauth-url', (_req: any, res: any) => {
         res.setHeader('Content-Type', 'application/json');
-        res.end(JSON.stringify({ oauthUrl }));
+        res.end(JSON.stringify({
+          status: 'local_active',
+          message: 'All Antigravity account details are already securely saved locally in ~/.antigravity-agent/cloud_accounts.db. No browser OAuth login needed.'
+        }));
       });
 
       server.middlewares.use('/api/models', (_req: any, res: any) => {

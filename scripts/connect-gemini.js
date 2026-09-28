@@ -1,84 +1,38 @@
-import fs from 'node:fs';
-import path from 'node:path';
-import { execSync } from 'node:child_process';
+import { fetchAllAntigravityAccountsTelemetry } from '../packages/quota/dist/antigravityCollector.js';
 
-const email = process.argv[2];
+async function main() {
+  console.log('====================================================');
+  console.log('   TokenPilot: Antigravity Local Identity Linker    ');
+  console.log('====================================================');
+  console.log('ℹ All Antigravity account details & credentials are');
+  console.log('  already saved locally in ~/.antigravity-agent/cloud_accounts.db.');
+  console.log('ℹ No browser OAuth web consent flow is required.\n');
 
-function getGoogleClientId() {
-  if (process.env.ANTIGRAVITY_CLIENT_ID) return process.env.ANTIGRAVITY_CLIENT_ID;
-  const home = process.env.HOME || '';
-  const candidatePath = path.join(
-    home,
-    'Desktop',
-    'Antigravity Tools',
-    'AntigravityManager',
-    'src',
-    'modules',
-    'cloud-account',
-    'services',
-    'GoogleAPIService.ts'
-  );
-  if (fs.existsSync(candidatePath)) {
-    try {
-      const content = fs.readFileSync(candidatePath, 'utf8');
-      const match = content.match(/CLIENT_ID\s*=\s*['"]([^'"]+)['"]/);
-      if (match) return match[1];
-    } catch {
-      // ignore
+  try {
+    const accounts = await fetchAllAntigravityAccountsTelemetry();
+    if (!accounts || accounts.length === 0) {
+      console.log('⚠️  No active Antigravity accounts detected in ~/.antigravity-agent/cloud_accounts.db');
+      console.log('   Ensure Antigravity Manager or Antigravity Agent has logged in.');
+      return;
     }
+
+    console.log(`✅ Discovered ${accounts.length} active local Antigravity account(s):\n`);
+    accounts.forEach((acc, idx) => {
+      const email = acc.email || acc.accountId;
+      const modelCount = acc.modelDetails?.length || 0;
+      const primaryReset = acc.windows?.[0]?.resetLabel || 'Active';
+      console.log(`  [Account #${idx + 1}] ${email}`);
+      console.log(`    • Models Available: ${modelCount} (Gemini 2.5/3.x, Claude Opus/Sonnet, GPT-OSS)`);
+      console.log(`    • Reset Window: ${primaryReset}`);
+      console.log(`    • Telemetry Status: Synced from local encrypted store`);
+      console.log('');
+    });
+
+    console.log('🎉 TokenPilot has full access to your Antigravity accounts.');
+    console.log('   Ready for manual job runs, failovers, and test boosters.');
+  } catch (err) {
+    console.error('❌ Failed to read local Antigravity credentials:', err.message);
   }
-  return '';
 }
 
-const clientId = getGoogleClientId();
-
-const scopes = [
-  'https://www.googleapis.com/auth/cloud-platform',
-  'https://www.googleapis.com/auth/userinfo.email',
-  'https://www.googleapis.com/auth/userinfo.profile',
-  'https://www.googleapis.com/auth/cclog',
-  'https://www.googleapis.com/auth/experimentsandconfigs',
-  'https://www.googleapis.com/auth/aicode'
-].join(' ');
-
-const redirectUri = 'http://localhost:8888/oauth-callback';
-
-const params = new URLSearchParams({
-  access_type: 'offline',
-  scope: scopes,
-  prompt: 'consent',
-  response_type: 'code',
-  client_id: clientId,
-  redirect_uri: redirectUri,
-  include_granted_scopes: 'true',
-  state: `tokenpilot-${Date.now()}`
-});
-
-if (email) {
-  params.set('login_hint', email);
-}
-
-const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
-
-console.log('----------------------------------------------------');
-console.log('TokenPilot Google OAuth Connect');
-if (email) {
-  console.log(`Connecting account: ${email}`);
-}
-console.log('Click or open this link in your browser:');
-console.log(authUrl);
-console.log('----------------------------------------------------');
-
-try {
-  if (process.platform === 'darwin') {
-    execSync(`open "${authUrl}"`);
-  } else if (process.platform === 'win32') {
-    execSync(`start "" "${authUrl}"`);
-  } else {
-    execSync(`xdg-open "${authUrl}"`);
-  }
-  console.log('Browser opened! Please click "Allow" in your browser.');
-} catch (e) {
-  // opened or print
-}
-
+main();

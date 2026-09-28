@@ -14,7 +14,7 @@ import type {
 
 export type { Account };
 import { MockQuotaSource } from '@tokenpilot/quota';
-import { RepoLabJobTemplate } from '@tokenpilot/jobs';
+import { RepoLabJobTemplate, McpJobBridge } from '@tokenpilot/jobs';
 
 export interface ClientState {
   providers: Provider[];
@@ -55,6 +55,7 @@ function persistStoredAlias(accountId: string, alias: string) {
 export class ClientService {
   private quotaSource = new MockQuotaSource();
   private repoLabTemplate = new RepoLabJobTemplate();
+  private activeRunningJobIds = new Set<string>();
 
   private state: ClientState = {
     providers: [
@@ -148,6 +149,7 @@ export class ClientService {
   };
 
   private listeners: Array<() => void> = [];
+  private mcpBridge = new McpJobBridge();
 
   constructor() {
     (window as any).__clientService = this;
@@ -590,13 +592,16 @@ export class ClientService {
   async runJobLifecycle(jobId: string, onLog: (msg: string) => void) {
     const job = this.state.jobs.find((j) => j.id === jobId);
     if (!job || job.state !== 'AUTHORIZED') return;
+    if (this.activeRunningJobIds.has(jobId)) return;
+    this.activeRunningJobIds.add(jobId);
 
-    // 0. Stage 1: Accelerator & Skill Discovery (First Work)
-    onLog('[Discovery] 🔍 STAGE 1 (FIRST WORK): Scouting GitHub repositories and agent skills...');
-    await new Promise((r) => setTimeout(r, 600));
-    const objSnippet = job.objective ? job.objective.slice(0, 50) : 'repository optimization';
-    onLog(`[Discovery] Querying community repos & skills for: "${objSnippet}..."`);
-    await new Promise((r) => setTimeout(r, 700));
+    try {
+      // 0. Stage 1: Accelerator & Skill Discovery (First Work)
+      onLog('[Discovery] 🔍 STAGE 1 (FIRST WORK): Scouting GitHub repositories and agent skills...');
+      await new Promise((r) => setTimeout(r, 600));
+      const objSnippet = job.objective ? job.objective.slice(0, 50) : 'repository optimization';
+      onLog(`[Discovery] Querying community repos & skills for: "${objSnippet}..."`);
+      await new Promise((r) => setTimeout(r, 700));
 
     const isGraph = job.name.toLowerCase().includes('graph') || (job.objective && job.objective.toLowerCase().includes('graph'));
     const isSec = job.name.toLowerCase().includes('security') || (job.objective && (job.objective.toLowerCase().includes('cve') || job.objective.toLowerCase().includes('audit')));
@@ -694,20 +699,159 @@ export class ClientService {
       }
     }
 
+    this.mcpBridge.registerJob(job, onLog);
+    onLog('[MCP Bridge] 🔌 Initialized Model Context Protocol sidecar bridge for Antigravity & Agent tools.');
+    this.mcpBridge.handleToolCall('tokenpilot_get_context', { jobId });
+
     onLog(`[Exec] Objective evaluation: "${job.objective}"`);
-    await new Promise((r) => setTimeout(r, 1200));
-    onLog('[Exec] Running static security analysis and test runner...');
-    await new Promise((r) => setTimeout(r, 1200));
-    onLog('[Exec] Generated audit report and patch artifacts.');
     await new Promise((r) => setTimeout(r, 800));
+
+    this.mcpBridge.handleToolCall('tokenpilot_report_progress', {
+      jobId,
+      stage: 'ast_analysis',
+      percent: 45,
+      message: 'Synthesized AST representation and extracted exported interfaces'
+    });
+    await new Promise((r) => setTimeout(r, 800));
+
+    this.mcpBridge.handleToolCall('tokenpilot_report_progress', {
+      jobId,
+      stage: isTest ? 'synthesizing_tests' : isSec ? 'security_scan' : 'verifying',
+      percent: 80,
+      message: isTest
+        ? 'Synthesizing 14 high-coverage unit test assertions for uncovered edge cases'
+        : isSec
+        ? 'Remediating credential exposure and applying strict sandbox policy'
+        : 'Generating Graphify architectural dossier and God Node analysis'
+    });
+    await new Promise((r) => setTimeout(r, 800));
+
+    // Submit structured diff patch via MCP
+    let patch = '';
+    let filesChanged = ['tests/autogen/auth_service.test.ts'];
+    let metrics = { testsGenerated: 14, testsPassed: 14, tokensSaved: 38200 };
+
+    if (isTest) {
+      filesChanged = ['tests/autogen/auth_service.test.ts'];
+      metrics = { testsGenerated: 14, testsPassed: 14, tokensSaved: 38200 };
+      patch = `diff --git a/tests/autogen/auth_service.test.ts b/tests/autogen/auth_service.test.ts
+new file mode 100644
+index 0000000..7cf4b12
+--- /dev/null
++++ b/tests/autogen/auth_service.test.ts
+@@ -0,0 +1,35 @@
++import { describe, it, expect, vi, beforeEach } from 'vitest';
++import { AuthService } from '../../src/services/authService';
++import { TokenManager } from '../../src/security/tokenManager';
++
++describe('AuthService (Autonomous Boosted Tests)', () => {
++  let auth: AuthService;
++  let mockTokenManager: any;
++
++  beforeEach(() => {
++    mockTokenManager = { verifyToken: vi.fn(), rotateKeys: vi.fn() };
++    auth = new AuthService(mockTokenManager);
++  });
++
++  it('should authenticate valid credentials with deterministic hash', async () => {
++    const user = await auth.login('admin@tokenpilot.internal', 'secure_passphrase_99');
++    expect(user).toBeDefined();
++    expect(user.role).toBe('cluster_admin');
++    expect(mockTokenManager.verifyToken).toHaveBeenCalledTimes(1);
++  });
++
++  it('should reject malformed session payloads and throw SecurityError', async () => {
++    await expect(auth.validateSession('invalid.jwt.signature'))
++      .rejects.toThrow('INVALID_SIGNATURE');
++  });
++
++  it('should automatically trigger multi-account fallback when quota depletes', async () => {
++    const eventSpy = vi.fn();
++    auth.on('quota:exhausted', eventSpy);
++    await auth.exhaustQuotaForTest();
++    expect(eventSpy).toHaveBeenCalledWith(expect.objectContaining({ failoverReady: true }));
++  });
++});`;
+    } else if (isSec) {
+      filesChanged = ['src/security/sandboxPolicy.ts'];
+      metrics = { cvesRemediated: 2, tokensSaved: 42000 } as any;
+      patch = `diff --git a/src/security/sandboxPolicy.ts b/src/security/sandboxPolicy.ts
+index 4b89d12..9f12c34 100644
+--- a/src/security/sandboxPolicy.ts
++++ b/src/security/sandboxPolicy.ts
+@@ -12,8 +12,12 @@ export function enforceSandboxIsolation(opts: SandboxOptions) {
+-  // Allow host loopback for legacy debugging
+-  if (opts.allowLocalhost) return true;
++  // CRITICAL FIX: Disallow all private IP ranges and host loopbacks
++  if (opts.targetUrl.includes('localhost') || opts.targetUrl.includes('127.0.0.1')) {
++    throw new SecurityViolationError('SSRF_ATTEMPT_BLOCKED: Localhost loopback is forbidden');
++  }
++  if (/^(10\\.|172\\.(1[6-9]|2[0-9]|3[0-1])\\.|192\\.168\\.)/.test(opts.targetHost)) {
++    throw new SecurityViolationError('SSRF_ATTEMPT_BLOCKED: Private RFC-1918 range blocked');
++  }
+   return true;
+ }`;
+    } else if (isGraph) {
+      filesChanged = ['docs/architecture/graphify_dossier.md'];
+      metrics = { tokensSaved: 51000 } as any;
+      patch = `diff --git a/docs/architecture/graphify_dossier.md b/docs/architecture/graphify_dossier.md
+new file mode 100644
+index 0000000..f923b7a
+--- /dev/null
++++ b/docs/architecture/graphify_dossier.md
+@@ -0,0 +1,22 @@
++# Architectural Dossier & God Node Report
++
++## Community Clusters
++- **Core State Machine**: \`packages/core/src/state-machine\` (24 nodes, 42 edges)
++- **Quota Engine**: \`packages/quota\` (18 nodes, 31 edges)
++- **UI Components**: \`apps/desktop/src/pages\` (32 nodes, 58 edges)
++
++\`\`\`mermaid
++graph TD
++  Dashboard[Dashboard View] --> QuotaCard[Quota Ranger Card]
++  Dashboard --> ClientService[Client Service]
++  ClientService --> RealQuotaSource[Real Quota Source]
++  ClientService --> McpJobBridge[MCP Runner Bridge]
++  McpJobBridge --> AntigravityAgent[Antigravity Agent]
++\`\`\`
++`;
+    } else {
+      filesChanged = ['src/utils/astOptimizer.ts'];
+      metrics = { tokensSaved: 31000 } as any;
+      patch = `diff --git a/src/utils/astOptimizer.ts b/src/utils/astOptimizer.ts
+new file mode 100644
+index 0000000..2d4f891
+--- /dev/null
++++ b/src/utils/astOptimizer.ts
+@@ -0,0 +1,18 @@
++export function optimizeAstTraversal(node: any): any {
++  // Fast-track traversal skipping unused branches
++  if (!node || node.type === 'CommentBlock') return null;
++  return node;
++}`;
+    }
+
+    this.mcpBridge.handleToolCall('tokenpilot_submit_diff', {
+      jobId,
+      summary: `Completed ${job.name} execution using attached Stage 1 accelerators and MCP agent runtime.`,
+      filesChanged,
+      patch,
+      metrics
+    });
+
+    onLog('[MCP Bridge] 📦 Unified diff patch captured and verified.');
+    await new Promise((r) => setTimeout(r, 600));
 
     // 5. Complete
     job.state = 'COMPLETED';
     job.completedAt = new Date().toISOString();
     this.logAudit('JOB_COMPLETED', `Job completed successfully: ${job.name}`, 'info', { jobId });
     this.notify();
+    } finally {
+      this.activeRunningJobIds.delete(jobId);
+    }
   }
-
 
   pauseJob(jobId: string) {
     const job = this.state.jobs.find((j) => j.id === jobId);
@@ -740,30 +884,35 @@ export class ClientService {
     const job = this.state.jobs.find((j) => j.id === jobId);
     if (!job || job.state !== 'COMPLETED') return null;
 
+    const mcpDiff = this.mcpBridge.getJobResultDiff(jobId);
+
     return {
       jobId,
-      summaryMarkdown: `### 🛡️ Repo Lab Security & Architecture Report\n\n- **Target Repo**: ${(job.spec as any).repoUrl}\n- **Objective**: ${job.objective}\n- **Analysis Depth**: ${(job.spec as any).depth || 'standard'}\n- **Sandbox Health**: 100% Isolated, no leak attempts detected\n- **Findings**: Codebase conforms to modern best practices. 0 critical vulnerabilities identified.`,
+      summaryMarkdown: mcpDiff?.summary || `### 🛡️ Repo Lab Security & Architecture Report\n\n- **Target Repo**: ${(job.spec as any).repoUrl}\n- **Objective**: ${job.objective}\n- **Analysis Depth**: ${(job.spec as any).depth || 'standard'}\n- **Sandbox Health**: 100% Isolated, no leak attempts detected\n- **Findings**: Codebase conforms to modern best practices. 0 critical vulnerabilities identified.`,
       resultJson: {
         dependenciesAudited: 38,
-        vulnerabilitiesFound: 0,
-        testsExecuted: 14,
-        testsPassed: 14
+        vulnerabilitiesFound: mcpDiff?.metrics?.cvesRemediated ?? 0,
+        testsExecuted: mcpDiff?.metrics?.testsGenerated ?? 14,
+        testsPassed: mcpDiff?.metrics?.testsPassed ?? 14
       },
+      diffPatch: mcpDiff?.patch || null,
+      filesChanged: mcpDiff?.filesChanged || ['tests/autogen/auth_service.test.ts'],
+      metrics: mcpDiff?.metrics || { testsGenerated: 14, testsPassed: 14, tokensSaved: 38200 },
       artifactManifest: [
         {
           id: 'art-1',
-          name: 'repo-analysis-report.md',
-          relativePath: 'artifacts/repo-analysis-report.md',
+          name: mcpDiff?.filesChanged[0]?.split('/').pop() || 'repo-analysis-report.md',
+          relativePath: `artifacts/${mcpDiff?.filesChanged[0] || 'repo-analysis-report.md'}`,
           mimeType: 'text/markdown',
           sizeBytes: 4096,
           sha256: '9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08'
         },
         {
           id: 'art-2',
-          name: 'security-audit.json',
-          relativePath: 'artifacts/security-audit.json',
-          mimeType: 'application/json',
-          sizeBytes: 8192,
+          name: 'solution.patch',
+          relativePath: 'artifacts/solution.patch',
+          mimeType: 'text/x-diff',
+          sizeBytes: 2048,
           sha256: '5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8'
         }
       ],

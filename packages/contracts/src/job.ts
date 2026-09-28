@@ -126,4 +126,12 @@ export interface JobResult {
   artifactManifest: ArtifactManifestItem[];
   quotaBeforeJson: unknown | null;
   quotaAfterJson: unknown | null;
+  diffPatch?: string | null;
+  filesChanged?: string[];
+  metrics?: {
+    testsGenerated?: number;
+    testsPassed?: number;
+    cvesRemediated?: number;
+    tokensSaved?: number;
+  };
 }
