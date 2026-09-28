@@ -65,3 +65,4 @@ test-results/
 # Graphify & agent local cache
 graphify-out/
 .agents/
+.opencode/
