@@ -16,7 +16,8 @@ import {
   Sparkles,
   Zap,
   TestTube2,
-  ShieldAlert
+  ShieldAlert,
+  RefreshCw
 } from 'lucide-react';
 import type { ClientState } from '../state/clientService.js';
 import { getQuotaRangeTier } from '../utils/quotaRanger.js';
@@ -168,6 +169,12 @@ index 0000000..7cf4b12
               <CheckCircle2 className="w-3.5 h-3.5" />
               <span>Job Completed</span>
             </span>
+            {job.failoverHistory && job.failoverHistory.length > 0 && (
+              <span className="flex items-center space-x-1.5 text-xs font-medium font-mono px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30">
+                <RefreshCw className="w-3.5 h-3.5 text-amber-500" />
+                <span>Failover active ({job.failoverHistory.length})</span>
+              </span>
+            )}
           </div>
           <p className="paragraph-300 text-xs mt-1 font-light text-[var(--text-main)] opacity-75">
             Target: <strong>{(job.spec as any).repoUrl || 'Repository'}</strong> • Objective: {job.objective}
@@ -258,6 +265,45 @@ index 0000000..7cf4b12
             >
               Copy
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Failover Cascade Banner */}
+      {job.failoverHistory && job.failoverHistory.length > 0 && (
+        <div className="mb-6 p-4 rounded-xl bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/25 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
+          <div className="flex items-start md:items-center space-x-3">
+            <div className="p-2 rounded-lg bg-amber-500/20 text-amber-600 dark:text-amber-400 shrink-0">
+              <RefreshCw className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="flex items-center space-x-2 font-medium text-amber-700 dark:text-amber-300">
+                <span>Account Failover Executed ({job.failoverHistory.length})</span>
+                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-800 dark:text-amber-300">
+                  Zero Context Loss
+                </span>
+              </div>
+              <p className="text-[11px] text-[var(--text-main)] opacity-75 mt-0.5 font-light">
+                {job.failoverHistory[0]?.reason || 'Primary quota limit reached / 429 rate limit detected'}. Execution seamlessly transferred to backup standby without losing progress.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-2 shrink-0 font-mono text-[11px] overflow-x-auto pb-1 md:pb-0">
+            {job.failoverHistory.map((ev, i) => (
+              <div
+                key={i}
+                className="flex items-center space-x-2 px-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-amber-500/30 shadow-xs"
+              >
+                <span className="line-through opacity-60 text-rose-500 dark:text-rose-400 truncate max-w-[140px]" title={ev.fromAccountId}>
+                  {ev.fromAccountId.split('-')[0] || ev.fromAccountId}
+                </span>
+                <span className="text-amber-500 font-bold">➔</span>
+                <span className="font-semibold text-emerald-600 dark:text-emerald-400 truncate max-w-[140px]" title={ev.toAccountId}>
+                  {ev.toAccountId.split('-')[0] || ev.toAccountId}
+                </span>
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -502,6 +548,41 @@ index 0000000..7cf4b12
               Audit Findings &amp; Summary
             </h3>
           </div>
+          {job.failoverHistory && job.failoverHistory.length > 0 && (
+            <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 space-y-3">
+              <div className="flex items-center space-x-2 text-amber-600 dark:text-amber-400 font-mono text-xs uppercase tracking-wider font-semibold">
+                <RefreshCw className="w-4 h-4" />
+                <span>Failover Cascade Log ({job.failoverHistory.length} event)</span>
+              </div>
+              <div className="space-y-2 text-xs">
+                {job.failoverHistory.map((ev, i) => (
+                  <div
+                    key={i}
+                    className="p-3 rounded-lg bg-white dark:bg-slate-900 border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-2"
+                  >
+                    <div>
+                      <div className="flex items-center space-x-2">
+                        <span className="font-mono font-medium text-rose-500 line-through">
+                          {ev.fromAccountId}
+                        </span>
+                        <span className="text-amber-500 font-bold">➔</span>
+                        <span className="font-mono font-medium text-emerald-500">
+                          {ev.toAccountId}
+                        </span>
+                      </div>
+                      <p className="text-[11px] opacity-70 mt-1">
+                        Reason: {ev.reason}
+                      </p>
+                    </div>
+                    <span className="text-[10px] font-mono opacity-50 shrink-0">
+                      {new Date(ev.timestamp).toLocaleTimeString()}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs leading-relaxed font-sans text-[var(--text-main)]">
             <pre className="whitespace-pre-wrap font-sans font-light text-[var(--text-main)] paragraph-300">
               {result.summaryMarkdown}
