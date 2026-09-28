@@ -78,10 +78,6 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
   const filteredProviders = providerFilter === 'all'
     ? activeProviders
-    : providerFilter === 'auto_mode'
-    ? activeProviders.filter((p) => p.id === 'antigravity' || p.id === 'opencode')
-    : providerFilter === 'manual_only'
-    ? activeProviders.filter((p) => p.id === 'claude' || p.id === 'codex')
     : activeProviders.filter((p) => p.id === providerFilter);
 
   // Low quota accounts (<= 15% remaining on any window/model group)
@@ -270,26 +266,6 @@ export const Dashboard: React.FC<DashboardProps> = ({
               }`}
             >
               All Providers ({state.accounts.length})
-            </button>
-            <button
-              onClick={() => setProviderFilter('auto_mode')}
-              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer shrink-0 ${
-                providerFilter === 'auto_mode'
-                  ? 'bg-cyan-600 text-white shadow-xs font-semibold'
-                  : 'bg-cyan-50 dark:bg-cyan-950/40 border border-cyan-200 dark:border-cyan-800 text-cyan-800 dark:text-cyan-300 hover:bg-cyan-100 dark:hover:bg-cyan-900/60'
-              }`}
-            >
-              <span>⚡ Auto Mode (Antigravity → OpenCode)</span>
-            </button>
-            <button
-              onClick={() => setProviderFilter('manual_only')}
-              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer shrink-0 ${
-                providerFilter === 'manual_only'
-                  ? 'bg-purple-600 text-white shadow-xs font-semibold'
-                  : 'bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 text-purple-800 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/60'
-              }`}
-            >
-              <span>🛡️ Manual Only (Claude &amp; Codex)</span>
             </button>
             {activeProviders.map((p) => {
               const count = state.accounts.filter((a) => a.providerId === p.id).length;
