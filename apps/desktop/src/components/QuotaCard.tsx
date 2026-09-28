@@ -545,12 +545,17 @@ export const QuotaCard: React.FC<QuotaCardProps> = ({
         {/* Reset Countdown — live ticking or static label */}
         {(primaryWindow?.resetsAt || (primaryWindow as any)?.resetLabel) && (
           <div className="flex items-center space-x-1.5 text-xs mb-4">
-            <Clock className="w-3.5 h-3.5 text-slate-400" />
+            <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
             <span className="paragraph-300 font-light text-[var(--text-main)]">
               {countdown ? (
                 <>
-                  Resets in{' '}
+                  {primaryWindow?.label?.toLowerCase().includes('month') ? 'Monthly reset in ' : 'Resets in '}
                   <strong className="font-medium text-[var(--text-main)] font-mono">{countdown}</strong>
+                  {primaryWindow?.resetsAt && (
+                    <span className="opacity-70 font-mono ml-1.5 text-[11px]">
+                      ({new Date(primaryWindow.resetsAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})
+                    </span>
+                  )}
                 </>
               ) : (primaryWindow as any)?.resetLabel ? (
                 <span className="font-medium text-[var(--text-main)] font-mono">

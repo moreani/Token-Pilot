@@ -79,6 +79,33 @@ function realQuotaApiPlugin() {
             const raw = execSync('npx tokscale usage --json', { encoding: 'utf8', timeout: 4000 });
             items = JSON.parse(raw);
             if (Array.isArray(items) && items.length > 0) {
+              // Format OpenCode items so Monthly allowance is primary with clean reset/expiry labels
+              for (const it of items) {
+                if (it.provider && it.provider.toLowerCase().includes('opencode') && Array.isArray(it.metrics)) {
+                  const monthlyIdx = it.metrics.findIndex((m: any) => m.label?.toLowerCase().includes('month'));
+                  if (monthlyIdx > 0) {
+                    const [monthly] = it.metrics.splice(monthlyIdx, 1);
+                    it.metrics.unshift(monthly);
+                  }
+                  for (const m of it.metrics) {
+                    if (m.label?.toLowerCase().includes('month')) {
+                      m.label = 'Monthly Allowance';
+                      if (m.resets_at) {
+                        const d = new Date(m.resets_at);
+                        const formatted = !isNaN(d.getTime())
+                          ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                          : '';
+                        m.reset_label = formatted ? `Resets ${formatted} (Monthly)` : 'Resets monthly';
+                      }
+                    } else if (m.label?.toLowerCase().includes('rolling')) {
+                      m.label = 'Session (5-Hour Rolling)';
+                      m.reset_label = '5-hour rolling session';
+                    } else if (m.label?.toLowerCase().includes('week')) {
+                      m.label = 'Weekly Allowance';
+                    }
+                  }
+                }
+              }
               try {
                 fs.writeFileSync(cachePath, JSON.stringify(items), 'utf8');
               } catch {}

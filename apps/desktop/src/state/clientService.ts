@@ -207,7 +207,7 @@ export class ClientService {
                   displayAlias = providerId === 'codex' ? `${email} • Codex ${plan}` : email;
                 }
               } else if (providerId === 'opencode') {
-                displayAlias = 'OpenCode CLI (Go Session)';
+                displayAlias = 'OpenCode CLI • Go Monthly';
               } else {
                 displayAlias = `${item.provider} — ${plan}`;
               }
@@ -239,26 +239,61 @@ export class ClientService {
             } as any);
 
 
-            const metricsList = (item.metrics && Array.isArray(item.metrics) && item.metrics.length > 0)
+            let metricsList = (item.metrics && Array.isArray(item.metrics) && item.metrics.length > 0)
               ? item.metrics
               : (item.windows && Array.isArray(item.windows))
               ? item.windows
               : [];
 
-            const windows = metricsList.map((m: any, idx: number) => ({
-              id: `${accountId}-window-${idx}`,
-              label: m.label || `Window ${idx + 1}`,
-              usedFraction: (m.used_percent !== undefined ? m.used_percent : (100 - (m.remaining_percent ?? 0))) / 100,
-              remainingFraction: (m.remaining_percent !== undefined ? m.remaining_percent : (100 - (m.used_percent ?? 0))) / 100,
-              resetsAt: m.resets_at || null,
-              resetLabel: m.reset_label || null,
-              observedAt: nowIso,
-              source: 'real-telemetry'
-            }));
+            // For OpenCode: Promote Monthly quota window to primary position (index 0) rather than 5-hour rolling
+            if (providerId === 'opencode') {
+              const monthlyIdx = metricsList.findIndex((m: any) => m.label?.toLowerCase().includes('month'));
+              if (monthlyIdx > 0) {
+                const [monthlyItem] = metricsList.splice(monthlyIdx, 1);
+                metricsList.unshift(monthlyItem);
+              }
+            }
+
+            const windows = metricsList.map((m: any, idx: number) => {
+              let label = m.label || `Window ${idx + 1}`;
+              let resetLabel = m.reset_label || null;
+
+              if (providerId === 'opencode') {
+                if (m.label?.toLowerCase().includes('month')) {
+                  label = 'Monthly Allowance';
+                  if (m.resets_at) {
+                    const d = new Date(m.resets_at);
+                    const formatted = !isNaN(d.getTime())
+                      ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                      : '';
+                    resetLabel = formatted ? `Resets ${formatted} (Monthly)` : 'Resets monthly';
+                  }
+                } else if (m.label?.toLowerCase().includes('rolling')) {
+                  label = 'Session (5-Hour Rolling)';
+                  resetLabel = '5-hour rolling session';
+                } else if (m.label?.toLowerCase().includes('week')) {
+                  label = 'Weekly Allowance';
+                }
+              }
+
+              return {
+                id: `${accountId}-window-${idx}`,
+                label,
+                usedFraction: (m.used_percent !== undefined ? m.used_percent : (100 - (m.remaining_percent ?? 0))) / 100,
+                remainingFraction: (m.remaining_percent !== undefined ? m.remaining_percent : (100 - (m.used_percent ?? 0))) / 100,
+                resetsAt: m.resets_at || null,
+                resetLabel,
+                observedAt: nowIso,
+                source: 'real-telemetry'
+              };
+            });
 
             const primaryWindow = windows[0];
             const fractions = windows.map((w: any) => w.remainingFraction).filter((f: any) => typeof f === 'number' && !isNaN(f));
-            const minRemaining = fractions.length > 0 ? Math.min(...fractions) : (primaryWindow?.remainingFraction ?? 1.0);
+            // For OpenCode: evaluate by primary monthly quota so temporary rolling session limit doesn't false-alarm conserve
+            const minRemaining = providerId === 'opencode'
+              ? (primaryWindow?.remainingFraction ?? 1.0)
+              : (fractions.length > 0 ? Math.min(...fractions) : (primaryWindow?.remainingFraction ?? 1.0));
             const isConserve = minRemaining <= 0.15;
             const isBurn = !isConserve && primaryWindow ? primaryWindow.remainingFraction > 0.7 && minRemaining > 0.3 : false;
 
@@ -270,7 +305,7 @@ export class ClientService {
               modelDetails: item.models,
               recommendation: isConserve ? 'conserve' : (isBurn ? 'burn' : 'on_pace'),
               recommendationReason: isConserve
-                ? `Low quota remaining (${Math.round(minRemaining * 100)}% on limited models). Recommendation: conserve.`
+                ? `Low quota remaining (${Math.round(minRemaining * 100)}% on primary window). Recommendation: conserve.`
                 : isBurn
                 ? `${Math.round((primaryWindow?.remainingFraction ?? 1) * 100)}% quota remaining. Under pace for this window—recommended for productive burn.`
                 : 'Usage is on track for this window.',

@@ -54,18 +54,55 @@ export class RealQuotaSource implements QuotaSource {
       const items: TokscaleQuotaItem[] = JSON.parse(rawJson);
 
       for (const item of items) {
-        const providerId = item.provider.toLowerCase().replace(/\s+/g, '-');
+        const normProvider = item.provider.toLowerCase();
+        const providerId = normProvider.includes('codex')
+          ? 'codex'
+          : normProvider.includes('opencode')
+          ? 'opencode'
+          : normProvider.replace(/\s+/g, '-');
         const accountId = item.email ? `${providerId}-${item.email}` : `${providerId}-${item.plan.toLowerCase()}`;
 
-        const windows = item.metrics.map((m, idx) => ({
-          id: `${accountId}-window-${idx}`,
-          label: `${m.label} Pool (${item.plan})`,
-          usedFraction: m.used_percent / 100,
-          remainingFraction: m.remaining_percent / 100,
-          resetsAt: m.resets_at,
-          observedAt: nowIso,
-          source: 'tokscale-real'
-        }));
+        let metrics = item.metrics;
+        if (providerId === 'opencode') {
+          const monthlyMetric = metrics.find((m) => m.label.toLowerCase().includes('month'));
+          const otherMetrics = metrics.filter((m) => !m.label.toLowerCase().includes('month'));
+          if (monthlyMetric) {
+            metrics = [monthlyMetric, ...otherMetrics];
+          }
+        }
+
+        const windows = metrics.map((m, idx) => {
+          let label = `${m.label} Pool (${item.plan})`;
+          let resetLabel: string | null = null;
+          if (providerId === 'opencode') {
+            if (m.label.toLowerCase().includes('month')) {
+              label = `Monthly Allowance (${item.plan})`;
+              if (m.resets_at) {
+                const d = new Date(m.resets_at);
+                const formatted = !isNaN(d.getTime())
+                  ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                  : '';
+                resetLabel = formatted ? `Resets ${formatted} (Monthly)` : 'Resets monthly';
+              }
+            } else if (m.label.toLowerCase().includes('rolling')) {
+              label = `Session (5-Hour Rolling)`;
+              resetLabel = '5-hour rolling session';
+            } else if (m.label.toLowerCase().includes('week')) {
+              label = `Weekly Allowance`;
+            }
+          }
+
+          return {
+            id: `${accountId}-window-${idx}`,
+            label,
+            usedFraction: m.used_percent / 100,
+            remainingFraction: m.remaining_percent / 100,
+            resetsAt: m.resets_at,
+            resetLabel,
+            observedAt: nowIso,
+            source: 'tokscale-real'
+          };
+        });
 
         // Determine recommendation
         const primaryWindow = windows[0];

@@ -84,6 +84,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const lowQuotaAccounts = state.accounts.filter((acc) => {
     const snap = state.snapshots.find((s) => s.accountId === acc.id);
     if (!snap?.windows || snap.windows.length === 0) return false;
+    if (acc.providerId === 'opencode') {
+      const monthlyWin = snap.windows.find((w) => w.label.toLowerCase().includes('month')) || snap.windows[0];
+      return (monthlyWin?.remainingFraction ?? 1) <= 0.15 || snap.recommendation === 'conserve';
+    }
     return snap.windows.some((w) => (w.remainingFraction ?? 1) <= 0.15) || snap.recommendation === 'conserve';
   });
 
@@ -110,7 +114,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
             <span className="font-semibold">Low quota alert: </span>
             {lowQuotaAccounts.map((a) => {
               const snap = state.snapshots.find((s) => s.accountId === a.id);
-              const minWin = snap?.windows?.reduce((min, w) => (((w.remainingFraction ?? 1) < (min.remainingFraction ?? 1)) ? w : min), snap.windows[0]);
+              const minWin = a.providerId === 'opencode'
+                ? (snap?.windows?.find((w) => w.label?.toLowerCase().includes('month')) || snap?.windows[0])
+                : snap?.windows?.reduce((min, w) => (((w.remainingFraction ?? 1) < (min.remainingFraction ?? 1)) ? w : min), snap?.windows[0]);
               const pct = Math.round((minWin?.remainingFraction ?? 0) * 100);
               const name = a.displayAlias.split('•')[0].split('(')[0].trim();
               const label = minWin?.label?.toLowerCase().includes('claude') ? 'Claude 0%' : `${pct}% left`;
@@ -232,6 +238,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
             .filter((a) => a.providerId === p.id)
             .some((a) => {
               const snap = state.snapshots.find((s) => s.accountId === a.id);
+              if (a.providerId === 'opencode') {
+                const monthlyWin = snap?.windows?.find((w) => w.label.toLowerCase().includes('month')) || snap?.windows[0];
+                return (monthlyWin?.remainingFraction ?? 1) <= 0.15 || snap?.recommendation === 'conserve';
+              }
               return snap?.windows?.some((w) => (w.remainingFraction ?? 1) <= 0.15) || snap?.recommendation === 'conserve';
             });
           return (
