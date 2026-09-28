@@ -8,13 +8,15 @@ interface JobConsoleProps {
   state: ClientState;
   clientService: any;
   onViewResults: (jobId: string) => void;
+  onNavigateToProjects?: () => void;
 }
 
 export const JobConsole: React.FC<JobConsoleProps> = ({
   jobId,
   state,
   clientService,
-  onViewResults
+  onViewResults,
+  onNavigateToProjects
 }) => {
   const [logs, setLogs] = useState<string[]>([]);
   const [elapsedSec, setElapsedSec] = useState(0);
@@ -273,10 +275,20 @@ export const JobConsole: React.FC<JobConsoleProps> = ({
             </p>
           </div>
 
-          <div className="flex items-center space-x-3 shrink-0">
+          <div className="flex items-center flex-wrap gap-2.5 shrink-0">
+            {onNavigateToProjects && (
+              <button
+                onClick={onNavigateToProjects}
+                className="px-4 py-2.5 rounded-xl text-xs font-semibold bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 dark:hover:bg-slate-700 text-white border border-slate-700 dark:border-slate-600 shadow-sm transition active:scale-95 cursor-pointer flex items-center space-x-2"
+              >
+                <FolderCheck className="w-4 h-4 text-cyan-400" />
+                <span>Launch in My Projects</span>
+              </button>
+            )}
+
             <button
               onClick={() => onViewResults(jobId)}
-              className="px-5 py-2.5 rounded-xl text-sm font-semibold bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 shadow-md transition transform active:scale-95 cursor-pointer flex items-center space-x-2"
+              className="px-5 py-2.5 rounded-xl text-xs font-semibold bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 shadow-md transition transform active:scale-95 cursor-pointer flex items-center space-x-2"
             >
               <span>Inspect Delivery Artifacts</span>
               <ArrowRight className="w-4 h-4" />

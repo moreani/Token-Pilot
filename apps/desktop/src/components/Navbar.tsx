@@ -1,14 +1,15 @@
 import React from 'react';
-import { Shield, Activity, Terminal, Stethoscope, FileText, Sun, Moon, Play, Sparkles, Brain, RefreshCw } from 'lucide-react';
+import { Shield, Activity, Terminal, Stethoscope, FileText, Sun, Moon, Play, FolderGit2, Brain, RefreshCw } from 'lucide-react';
 
 interface NavbarProps {
-  activeTab: 'dashboard' | 'wizard' | 'console' | 'result' | 'doctor' | 'audit' | 'skills';
-  setActiveTab: (tab: 'dashboard' | 'wizard' | 'console' | 'result' | 'doctor' | 'audit' | 'skills') => void;
+  activeTab: 'dashboard' | 'wizard' | 'console' | 'result' | 'doctor' | 'audit' | 'projects' | 'skills';
+  setActiveTab: (tab: 'dashboard' | 'wizard' | 'console' | 'result' | 'doctor' | 'audit' | 'projects' | 'skills') => void;
   activeJobId: string | null;
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
   updatesCount?: number;
   patternsCount?: number;
+  projectsCount?: number;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -18,7 +19,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   theme,
   onToggleTheme,
   updatesCount,
-  patternsCount
+  patternsCount,
+  projectsCount
 }) => {
   return (
     <header className="border-b border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 backdrop-blur sticky top-0 z-50 px-6 py-3 flex items-center justify-between transition-colors duration-200">
@@ -67,15 +69,20 @@ export const Navbar: React.FC<NavbarProps> = ({
         </button>
 
         <button
-          onClick={() => setActiveTab('skills')}
+          onClick={() => setActiveTab('projects')}
           className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer ${
-            activeTab === 'skills'
+            activeTab === 'projects'
               ? 'bg-blue-600 text-white shadow-xs'
               : 'text-[var(--text-main)] opacity-70 hover:opacity-100 hover:bg-slate-200 dark:hover:bg-slate-800/60'
           }`}
         >
-          <Sparkles className="w-3.5 h-3.5" />
-          <span>Accelerators</span>
+          <FolderGit2 className="w-3.5 h-3.5" />
+          <span>My Projects</span>
+          {typeof projectsCount === 'number' && projectsCount > 0 && (
+            <span className="px-1.5 py-0.2 rounded-full bg-blue-500/20 text-blue-600 dark:text-blue-400 font-mono text-[10px] font-semibold">
+              {projectsCount}
+            </span>
+          )}
         </button>
 
         {activeJobId && (

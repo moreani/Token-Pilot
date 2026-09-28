@@ -10,11 +10,12 @@ import { Doctor } from './pages/Doctor.js';
 import { AuditLog } from './pages/AuditLog.js';
 import { SkillsHub } from './pages/SkillsHub.js';
 import type { AcceleratorSkill } from './pages/SkillsHub.js';
+import { MyProjects } from './pages/MyProjects.js';
 
 export const App: React.FC = () => {
   const [state, setState] = useState<ClientState>(clientService.getState());
   const [activeTab, setActiveTab] = useState<
-    'dashboard' | 'wizard' | 'console' | 'result' | 'doctor' | 'audit' | 'skills'
+    'dashboard' | 'wizard' | 'console' | 'result' | 'doctor' | 'audit' | 'skills' | 'projects'
   >('dashboard');
   const [selectedAccountForJob, setSelectedAccountForJob] = useState<Account | null>(null);
   const [selectedSkillForJob, setSelectedSkillForJob] = useState<AcceleratorSkill | null>(null);
@@ -96,6 +97,7 @@ export const App: React.FC = () => {
         onToggleTheme={toggleTheme}
         updatesCount={state.updaterStatus?.totalUpdatesAvailable}
         patternsCount={state.memoryStats?.totalPatternsLearned}
+        projectsCount={state.savedProjects?.length}
       />
 
       <main className="flex-1 pb-16">
@@ -111,6 +113,15 @@ export const App: React.FC = () => {
               setSelectedSkillForJob(null);
               setActiveTab('wizard');
             }}
+          />
+        )}
+
+        {activeTab === 'projects' && (
+          <MyProjects
+            state={state}
+            clientService={clientService}
+            onOpenWizard={() => setActiveTab('wizard')}
+            onViewJobResult={handleViewResults}
           />
         )}
 
@@ -135,6 +146,7 @@ export const App: React.FC = () => {
             state={state}
             clientService={clientService}
             onViewResults={handleViewResults}
+            onNavigateToProjects={() => setActiveTab('projects')}
           />
         )}
 
