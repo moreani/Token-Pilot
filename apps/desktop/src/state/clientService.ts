@@ -762,43 +762,57 @@ export class ClientService {
     onLog('[Exec] Analyzing repository structure and AST...');
     await new Promise((r) => setTimeout(r, 1100));
 
-    // Check if we have multiple accounts in the pool to demonstrate real failover
+    // Check multi-account pool and verify real quota capacity before failover
     if (pool.length > 1) {
       const currentActiveIndex = pool.findIndex((p) => p.status === 'active');
       if (currentActiveIndex >= 0 && currentActiveIndex < pool.length - 1) {
-        const exhaustedItem = pool[currentActiveIndex];
+        const currentItem = pool[currentActiveIndex];
         const nextItem = pool[currentActiveIndex + 1];
 
-        // Simulate quota depletion / rate limit on primary
-        onLog(`[Quota] Checking usage velocity on account: ${exhaustedItem.displayAlias || exhaustedItem.accountId}...`);
-        await new Promise((r) => setTimeout(r, 800));
-        onLog(`[Quota Alert] ⚠️ Rate limit / quota window threshold reached for ${exhaustedItem.displayAlias || exhaustedItem.accountId}!`);
+        // Inspect actual telemetry snapshot for this account
+        const snapshot = this.state.snapshots.find((s) => s.accountId === currentItem.accountId);
+        const primaryWindow = snapshot?.windows?.[0];
+        const remainingFraction = primaryWindow?.remainingFraction ?? 1.0;
+        const remainingPercent = Math.round(remainingFraction * 100);
+
+        onLog(`[Quota] Checking usage velocity on account: ${currentItem.displayAlias || currentItem.accountId}...`);
         await new Promise((r) => setTimeout(r, 600));
 
-        // Perform Failover
-        exhaustedItem.status = 'exhausted';
-        nextItem.status = 'active';
-        job.accountId = nextItem.accountId;
-        job.providerId = nextItem.providerId;
+        // Only trigger failover if quota is critically low or exhausted (<= 15% or 0%)
+        const isDepleted = remainingFraction <= 0.15;
 
-        const failoverEvent: FailoverEvent = {
-          fromAccountId: exhaustedItem.accountId,
-          toAccountId: nextItem.accountId,
-          reason: 'Primary quota limit reached / 429 rate limit detected',
-          timestamp: new Date().toISOString()
-        };
-        job.failoverHistory = job.failoverHistory || [];
-        job.failoverHistory.push(failoverEvent);
+        if (isDepleted) {
+          onLog(`[Quota Alert] ⚠️ Quota depleted/exhausted (${remainingPercent}% remaining) for ${currentItem.displayAlias || currentItem.accountId}!`);
+          await new Promise((r) => setTimeout(r, 600));
 
-        this.logAudit('JOB_FAILOVER', `Dynamic failover: ${exhaustedItem.accountId} → ${nextItem.accountId}`, 'warn', {
-          jobId,
-          ...failoverEvent
-        });
-        this.notify();
+          // Perform Failover
+          currentItem.status = 'exhausted';
+          nextItem.status = 'active';
+          job.accountId = nextItem.accountId;
+          job.providerId = nextItem.providerId;
 
-        onLog(`[Failover] 🔄 Seamlessly transferring active context to backup account: ${nextItem.displayAlias || nextItem.accountId}`);
-        onLog(`[Failover] Provider bridge switched to ${nextItem.providerId.toUpperCase()}. Execution resumed without loss of state.`);
-        await new Promise((r) => setTimeout(r, 1000));
+          const failoverEvent: FailoverEvent = {
+            fromAccountId: currentItem.accountId,
+            toAccountId: nextItem.accountId,
+            reason: `Primary quota threshold reached (${remainingPercent}% remaining) / 429 rate limit detected`,
+            timestamp: new Date().toISOString()
+          };
+          job.failoverHistory = job.failoverHistory || [];
+          job.failoverHistory.push(failoverEvent);
+
+          this.logAudit('JOB_FAILOVER', `Dynamic failover: ${currentItem.accountId} → ${nextItem.accountId}`, 'warn', {
+            jobId,
+            ...failoverEvent
+          });
+          this.notify();
+
+          onLog(`[Failover] 🔄 Seamlessly transferring active context to backup account: ${nextItem.displayAlias || nextItem.accountId}`);
+          onLog(`[Failover] Provider bridge switched to ${nextItem.providerId.toUpperCase()}. Execution resumed without loss of state.`);
+          await new Promise((r) => setTimeout(r, 800));
+        } else {
+          onLog(`[Quota] ✅ Healthy quota available: ${remainingPercent}% remaining for ${currentItem.displayAlias || currentItem.accountId}. Maintaining primary execution.`);
+          await new Promise((r) => setTimeout(r, 500));
+        }
       }
     }
 
