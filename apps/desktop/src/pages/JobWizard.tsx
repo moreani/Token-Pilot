@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   ArrowRight,
   ArrowLeft,
@@ -131,6 +131,17 @@ export const JobWizard: React.FC<JobWizardProps> = ({
     defaultAccount ? [defaultAccount.id] : []
   );
 
+  // Auto-sync accounts when state updates
+  useEffect(() => {
+    if (selectedAccountIds.length === 0 && eligibleAccounts.length > 0) {
+      if (autoModeAccounts.length > 0) {
+        setSelectedAccountIds(autoModeAccounts.map((a) => a.id));
+      } else {
+        setSelectedAccountIds([eligibleAccounts[0].id]);
+      }
+    }
+  }, [eligibleAccounts, autoModeAccounts, selectedAccountIds.length]);
+
   const selectedAccounts = selectedAccountIds
     .map((id) => eligibleAccounts.find((a) => a.id === id))
     .filter((a): a is Account => !!a);
@@ -160,6 +171,8 @@ export const JobWizard: React.FC<JobWizardProps> = ({
   const selectAutoModeSequence = () => {
     if (autoModeAccounts.length > 0) {
       setSelectedAccountIds(autoModeAccounts.map((a) => a.id));
+    } else if (eligibleAccounts.length > 0) {
+      setSelectedAccountIds([eligibleAccounts[0].id]);
     }
   };
 
@@ -174,11 +187,28 @@ export const JobWizard: React.FC<JobWizardProps> = ({
   const [createdJobId, setCreatedJobId] = useState<string | null>(null);
   const [launchError, setLaunchError] = useState<string | null>(null);
 
+  const handleAutoResolveAndLaunch = () => {
+    selectAutoModeSequence();
+    setLaunchError(null);
+    setTimeout(() => {
+      handleFinalRunJob();
+    }, 50);
+  };
+
   // Step 6: Authorize & Run Job
   const handleFinalRunJob = () => {
     try {
       setLaunchError(null);
-      const accountPool = selectedAccounts.map((acc, idx) => ({
+      const targetAccounts = selectedAccounts.length > 0
+        ? selectedAccounts
+        : (autoModeAccounts.length > 0 ? autoModeAccounts : eligibleAccounts);
+
+      const targetPrimary = primaryAccount || targetAccounts[0] || state.accounts[0];
+      if (!targetPrimary) {
+        throw new Error('No execution account available. Please connect or configure an AI account in the Dashboard.');
+      }
+
+      const accountPool = targetAccounts.map((acc, idx) => ({
         accountId: acc.id,
         providerId: acc.providerId,
         displayAlias: acc.displayAlias,
@@ -186,16 +216,24 @@ export const JobWizard: React.FC<JobWizardProps> = ({
         status: idx === 0 ? ('active' as const) : ('standby' as const)
       }));
 
+      const safePool = accountPool.length > 0 ? accountPool : [{
+        accountId: targetPrimary.id,
+        providerId: targetPrimary.providerId,
+        displayAlias: targetPrimary.displayAlias,
+        priority: 1,
+        status: 'active' as const
+      }];
+
       const job = clientService.createRepoLabJob({
         name: `R&D Build: ${activeOpp.title.split('—')[0].trim()}`,
-        repoUrl: activeOpp.openSourceOptions[0]?.url || 'https://github.com/facebook/react',
+        repoUrl: activeOpp.openSourceOptions?.[0]?.url || 'https://github.com/facebook/react',
         objective: activeOpp.summary,
         depth: 'standard',
         runTests: true,
         generateFixes: true,
-        providerId: primaryAccount.providerId,
-        accountId: primaryAccount.id,
-        accountPool
+        providerId: targetPrimary.providerId,
+        accountId: targetPrimary.id,
+        accountPool: safePool
       });
 
       setCreatedJobId(job.id);
@@ -1007,9 +1045,18 @@ export const JobWizard: React.FC<JobWizardProps> = ({
               {/* Primary Authorization CTA */}
               <div className="pt-2">
                 {launchError && (
-                  <div className="mb-4 p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400 text-xs flex items-center space-x-2">
-                    <AlertTriangle className="w-4 h-4 shrink-0 text-rose-500" />
-                    <span>{launchError}</span>
+                  <div className="mb-4 p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-center space-x-2">
+                      <AlertTriangle className="w-4 h-4 shrink-0 text-rose-500" />
+                      <span>{launchError}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleAutoResolveAndLaunch}
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-rose-600 hover:bg-rose-500 text-white transition cursor-pointer shrink-0 shadow-xs"
+                    >
+                      ⚡ Auto-Resolve &amp; Launch
+                    </button>
                   </div>
                 )}
                 <button

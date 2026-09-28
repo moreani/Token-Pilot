@@ -590,6 +590,12 @@ export class ClientService {
 
     const permissions = this.repoLabTemplate.requiredPermissions(spec);
 
+    // Resolve fallback account if not provided
+    const fallbackAccount = this.state.accounts.find((a) => a.capabilities.executeJobs && !a.manualOnly)
+      || this.state.accounts[0];
+    const resolvedAccountId = params.accountId || fallbackAccount?.id || 'antigravity-rotkarmrudula_gmail_com';
+    const resolvedProviderId = params.providerId || fallbackAccount?.providerId || 'antigravity';
+
     // Initial accountPool initialization
     const pool: AccountPoolItem[] = params.accountPool && params.accountPool.length > 0
       ? params.accountPool.map((item, idx) => ({
@@ -599,9 +605,9 @@ export class ClientService {
         }))
       : [
           {
-            accountId: params.accountId,
-            providerId: params.providerId,
-            displayAlias: this.state.accounts.find((a) => a.id === params.accountId)?.displayAlias || params.accountId,
+            accountId: resolvedAccountId,
+            providerId: resolvedProviderId,
+            displayAlias: this.state.accounts.find((a) => a.id === resolvedAccountId)?.displayAlias || resolvedAccountId,
             priority: 1,
             status: 'active'
           }
