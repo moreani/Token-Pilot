@@ -13,15 +13,64 @@ import {
   Layers,
   Shield,
   ShieldCheck,
-  Plus
+  Plus,
+  Sparkles,
+  Zap,
+  Network,
+  ShieldAlert,
+  TestTube2
 } from 'lucide-react';
 
 import type { Account, ClientState } from '../state/clientService.js';
 import { getQuotaRangeTier } from '../utils/quotaRanger.js';
 
+export const JOB_TYPES = [
+  {
+    id: 'repo_lab' as const,
+    name: 'Repo Lab (Exploration & AST)',
+    badge: 'Standard',
+    icon: GitBranch,
+    description: 'Safely clones, builds, and inspects an unknown public GitHub repository inside an isolated disposable sandbox.',
+    accelerator: 'AST Fast-Track Inspector (ast-audit)',
+    speedup: '~3.2x faster',
+    defaultObjective: 'Investigate architecture, dependencies, and identify potential modernization tasks'
+  },
+  {
+    id: 'graphify_dossier' as const,
+    name: 'Architecture & Graphify Dossier',
+    badge: 'Knowledge Graph',
+    icon: Network,
+    description: 'Extracts persistent knowledge graphs, God Nodes, community clusters, and component relationship diagrams.',
+    accelerator: 'Graphify Knowledge Engine (graphify)',
+    speedup: '~4.8x faster',
+    defaultObjective: 'Extract architectural knowledge graph, god nodes, and component relationship map using Graphify'
+  },
+  {
+    id: 'security_audit' as const,
+    name: 'Security & CVE Audit',
+    badge: 'Zero-Trust',
+    icon: ShieldAlert,
+    description: 'Scouts hardcoded credentials, insecure packages, known CVE vulnerabilities, and permissive sandbox policies.',
+    accelerator: 'CodeGuard & CVE Hunter (code-guard)',
+    speedup: '~5.0x faster',
+    defaultObjective: 'Audit dependencies for known CVEs, scan source for exposed secrets, and verify sandbox policies'
+  },
+  {
+    id: 'test_booster' as const,
+    name: 'Test Suite Booster',
+    badge: 'Coverage',
+    icon: TestTube2,
+    description: 'Scouts uncovered functions and edge cases in the target repository and automatically synthesizes unit tests.',
+    accelerator: 'Autonomous Test Suite Booster (test-booster)',
+    speedup: '~2.9x faster',
+    defaultObjective: 'Discover untested modules, analyze edge cases, and synthesize targeted unit test suites'
+  }
+];
+
 interface JobWizardProps {
   state: ClientState;
   initialAccount?: Account | null;
+  initialSkill?: any;
   onCancel: () => void;
   onLaunchJob: (jobId: string) => void;
   clientService: any;
@@ -30,6 +79,7 @@ interface JobWizardProps {
 export const JobWizard: React.FC<JobWizardProps> = ({
   state,
   initialAccount,
+  initialSkill,
   onCancel,
   onLaunchJob,
   clientService
@@ -37,13 +87,29 @@ export const JobWizard: React.FC<JobWizardProps> = ({
   const [step, setStep] = useState<1 | 2 | 3 | 4 | 5 | 6>(1);
 
   // Form State
-  const [repoUrl, setRepoUrl] = useState('https://github.com/facebook/react');
+  const [selectedJobTypeId, setSelectedJobTypeId] = useState<string>(
+    initialSkill?.suggestedJobType || 'repo_lab'
+  );
+  const [repoUrl, setRepoUrl] = useState(
+    initialSkill?.repoUrl || 'https://github.com/facebook/react'
+  );
   const [objective, setObjective] = useState(
-    'Investigate architecture, dependencies, and identify potential modernization tasks'
+    initialSkill?.defaultObjective ||
+      'Investigate architecture, dependencies, and identify potential modernization tasks'
   );
   const [depth, setDepth] = useState<'shallow' | 'standard' | 'deep'>('standard');
   const [runTests, setRunTests] = useState(true);
   const [generateFixes, setGenerateFixes] = useState(false);
+
+  const activeJobType = JOB_TYPES.find((j) => j.id === selectedJobTypeId) || JOB_TYPES[0];
+
+  const handleSelectJobType = (typeId: string) => {
+    setSelectedJobTypeId(typeId);
+    const jt = JOB_TYPES.find((j) => j.id === typeId);
+    if (jt && !initialSkill) {
+      setObjective(jt.defaultObjective);
+    }
+  };
 
   // Account Pool State
   const eligibleAccounts = state.accounts.filter((a) => a.capabilities.executeJobs);
@@ -134,6 +200,7 @@ export const JobWizard: React.FC<JobWizardProps> = ({
       }));
 
       const job = clientService.createRepoLabJob({
+        name: `${activeJobType.name.split('(')[0].trim()}: ${repoUrl.replace('https://github.com/', '')}`,
         repoUrl,
         objective,
         depth,
@@ -197,32 +264,63 @@ export const JobWizard: React.FC<JobWizardProps> = ({
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="p-5 rounded-xl border-2 border-blue-500 bg-blue-500/5 dark:bg-blue-500/10 cursor-pointer">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center space-x-2">
-                    <GitBranch className="w-5 h-5 text-blue-500 dark:text-blue-400" />
-                    <h3 className="heading-500 font-medium text-[var(--text-main)]">Repo Lab</h3>
-                  </div>
-                  <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-900 text-blue-700 dark:text-blue-300 font-medium border border-blue-200 dark:border-blue-700">
-                    Recommended
-                  </span>
-                </div>
-                <p className="paragraph-300 text-xs leading-relaxed font-light text-[var(--text-main)] opacity-80">
-                  Safely clones, builds, and inspects an unknown public GitHub repository inside an isolated disposable sandbox.
-                </p>
-              </div>
+              {JOB_TYPES.map((jt) => {
+                const isSelected = jt.id === selectedJobTypeId;
+                const IconComponent = jt.icon;
+                return (
+                  <div
+                    key={jt.id}
+                    onClick={() => handleSelectJobType(jt.id)}
+                    className={`p-5 rounded-xl border-2 transition cursor-pointer flex flex-col justify-between ${
+                      isSelected
+                        ? 'border-blue-500 bg-blue-500/5 dark:bg-blue-500/10 shadow-xs'
+                        : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-white dark:bg-slate-900/60'
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center space-x-2">
+                          <IconComponent className={`w-5 h-5 ${isSelected ? 'text-blue-500 dark:text-blue-400' : 'text-slate-400'}`} />
+                          <h3 className="heading-500 font-medium text-[var(--text-main)]">{jt.name}</h3>
+                        </div>
+                        <span className={`text-[10px] font-mono uppercase px-2 py-0.5 rounded font-medium border ${
+                          isSelected
+                            ? 'bg-blue-50 dark:bg-blue-900 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-700'
+                            : 'bg-slate-100 dark:bg-slate-800 text-[var(--text-main)] opacity-70 border-slate-200 dark:border-slate-700'
+                        }`}>
+                          {jt.badge}
+                        </span>
+                      </div>
+                      <p className="paragraph-300 text-xs leading-relaxed font-light text-[var(--text-main)] opacity-80">
+                        {jt.description}
+                      </p>
+                    </div>
 
-              <div className="p-5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/40 opacity-60 cursor-not-allowed">
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="heading-500 font-medium text-[var(--text-main)] opacity-60">Website Study</h3>
-                  <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-[var(--text-main)] opacity-60">
-                    Phase 6
+                    <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[11px] font-mono">
+                      <span className="opacity-60 truncate max-w-[200px]" title={jt.accelerator}>
+                        ⚡ {jt.accelerator.split('(')[0].trim()}
+                      </span>
+                      <span className="text-emerald-600 dark:text-emerald-400 font-medium">{jt.speedup}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Stage 1 First Work Protocol Banner */}
+            <div className="p-3.5 rounded-xl bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/60 flex items-center justify-between text-xs">
+              <div className="flex items-center space-x-2.5">
+                <Sparkles className="w-4 h-4 text-blue-500 shrink-0" />
+                <div>
+                  <span className="font-semibold text-[var(--text-main)]">Stage 1 First Work Protocol:</span>
+                  <span className="opacity-80 ml-1 font-light text-[var(--text-main)]">
+                    Scouts &amp; binds <strong>{activeJobType.accelerator}</strong> ({activeJobType.speedup}) before sandbox container startup.
                   </span>
                 </div>
-                <p className="paragraph-300 text-xs font-light text-[var(--text-main)] opacity-60">
-                  Deterministic browser inspection and responsive screenshots with Playwright.
-                </p>
               </div>
+              <span className="font-mono text-[10px] uppercase px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300 font-medium shrink-0">
+                Default First Work
+              </span>
             </div>
 
             <div className="pt-4 flex justify-between">

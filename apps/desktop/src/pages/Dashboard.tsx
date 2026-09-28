@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { RefreshCw, ShieldCheck, Cpu, HardDrive, Flame, AlertTriangle } from 'lucide-react';
+import { RefreshCw, ShieldCheck, Cpu, HardDrive, Flame, AlertTriangle, LayoutGrid, Clock, Calendar, Play, ChevronRight } from 'lucide-react';
 
 
 import type { Account, ClientState } from '../state/clientService.js';
 import { TopAlertBanner } from '../components/TopAlertBanner.js';
 import { QuotaCard } from '../components/QuotaCard.js';
-import { QUOTA_RANGES } from '../utils/quotaRanger.js';
+import { QUOTA_RANGES, getQuotaRangeTier } from '../utils/quotaRanger.js';
 
 const AUTO_REFRESH_MS = 5 * 60 * 1000; // 5 minutes
 
@@ -98,6 +98,40 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
   const totalAccounts = state.accounts.length;
   const burnCount = state.snapshots.filter((s) => s.recommendation === 'burn').length;
+
+  const [viewMode, setViewMode] = useState<'grid' | 'timeline'>('grid');
+
+  const timelineAccounts = [...state.accounts].map((acc) => {
+    const snap = state.snapshots.find((s) => s.accountId === acc.id);
+    const primaryWin = snap?.windows[0];
+    const resetMs = primaryWin?.resetsAt ? new Date(primaryWin.resetsAt).getTime() : null;
+    const diffHours = resetMs ? Math.max(0, (resetMs - Date.now()) / (1000 * 3600)) : null;
+    const remainingPct = primaryWin?.remainingFraction !== null && primaryWin?.remainingFraction !== undefined
+      ? Math.round(primaryWin.remainingFraction * 100)
+      : 100;
+    const isUrgentBurn = remainingPct > 50 && diffHours !== null && diffHours <= 48;
+    const isConserve = remainingPct <= 15;
+    const provider = state.providers.find((p) => p.id === acc.providerId);
+
+    return {
+      account: acc,
+      snapshot: snap,
+      primaryWin,
+      resetMs,
+      diffHours,
+      remainingPct,
+      isUrgentBurn,
+      isConserve,
+      provider
+    };
+  }).sort((a, b) => {
+    if (a.isUrgentBurn && !b.isUrgentBurn) return -1;
+    if (!a.isUrgentBurn && b.isUrgentBurn) return 1;
+    if (a.resetMs !== null && b.resetMs !== null) return a.resetMs - b.resetMs;
+    if (a.resetMs !== null) return -1;
+    if (b.resetMs !== null) return 1;
+    return 0;
+  });
 
   return (
     <div className="max-w-7xl mx-auto px-6 py-6">
@@ -194,7 +228,6 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
         {/* Refresh button with last-refreshed label */}
         <div className="flex flex-col items-end">
-
             <button
               onClick={handleRefresh}
               disabled={isRefreshing}
@@ -220,48 +253,183 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </div>
         </div>
 
-      {/* Quick Provider Filter Tabs */}
-      <div className="flex items-center space-x-2 mb-5 overflow-x-auto pb-1">
-        <button
-          onClick={() => setProviderFilter('all')}
-          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer ${
-            providerFilter === 'all'
-              ? 'bg-blue-600 text-white shadow-xs'
-              : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-[var(--text-main)] hover:bg-slate-50 dark:hover:bg-slate-800'
-          }`}
-        >
-          All Providers ({state.accounts.length})
-        </button>
-        {activeProviders.map((p) => {
-          const count = state.accounts.filter((a) => a.providerId === p.id).length;
-          const hasLow = state.accounts
-            .filter((a) => a.providerId === p.id)
-            .some((a) => {
-              const snap = state.snapshots.find((s) => s.accountId === a.id);
-              if (a.providerId === 'opencode') {
-                const monthlyWin = snap?.windows?.find((w) => w.label.toLowerCase().includes('month')) || snap?.windows[0];
-                return (monthlyWin?.remainingFraction ?? 1) <= 0.15 || snap?.recommendation === 'conserve';
-              }
-              return snap?.windows?.some((w) => (w.remainingFraction ?? 1) <= 0.15) || snap?.recommendation === 'conserve';
-            });
-          return (
+      {/* View Switcher and Quick Filter Tabs Toolbar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
+        {viewMode === 'grid' ? (
+          <div className="flex items-center space-x-2 overflow-x-auto pb-1">
             <button
-              key={p.id}
-              onClick={() => setProviderFilter(p.id)}
-              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer ${
-                providerFilter === p.id
+              onClick={() => setProviderFilter('all')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer ${
+                providerFilter === 'all'
                   ? 'bg-blue-600 text-white shadow-xs'
                   : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-[var(--text-main)] hover:bg-slate-50 dark:hover:bg-slate-800'
               }`}
             >
-              <span>{p.displayName} ({count})</span>
-              {hasLow && <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />}
+              All Providers ({state.accounts.length})
             </button>
-          );
-        })}
+            {activeProviders.map((p) => {
+              const count = state.accounts.filter((a) => a.providerId === p.id).length;
+              const hasLow = state.accounts
+                .filter((a) => a.providerId === p.id)
+                .some((a) => {
+                  const snap = state.snapshots.find((s) => s.accountId === a.id);
+                  if (a.providerId === 'opencode') {
+                    const monthlyWin = snap?.windows?.find((w) => w.label.toLowerCase().includes('month')) || snap?.windows[0];
+                    return (monthlyWin?.remainingFraction ?? 1) <= 0.15 || snap?.recommendation === 'conserve';
+                  }
+                  return snap?.windows?.some((w) => (w.remainingFraction ?? 1) <= 0.15) || snap?.recommendation === 'conserve';
+                });
+              return (
+                <button
+                  key={p.id}
+                  onClick={() => setProviderFilter(p.id)}
+                  className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer ${
+                    providerFilter === p.id
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-[var(--text-main)] hover:bg-slate-50 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  <span>{p.displayName} ({count})</span>
+                  {hasLow && <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />}
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="flex items-center space-x-2 text-xs paragraph-300 font-light text-[var(--text-main)] opacity-75">
+            <Clock className="w-4 h-4 text-blue-500" />
+            <span>Accounts ranked by reset urgency and remaining capacity. Burn targets prioritized.</span>
+          </div>
+        )}
+
+        {/* View Mode Toggle: Grid vs Timeline */}
+        <div className="flex items-center space-x-1 p-1 rounded-xl bg-slate-100 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 shrink-0 self-start sm:self-auto">
+          <button
+            onClick={() => setViewMode('grid')}
+            className={`flex items-center space-x-1.5 px-3 py-1 rounded-lg text-xs font-medium transition cursor-pointer ${
+              viewMode === 'grid'
+                ? 'bg-white dark:bg-slate-900 text-[var(--text-main)] shadow-xs'
+                : 'text-[var(--text-main)] opacity-60 hover:opacity-100'
+            }`}
+          >
+            <LayoutGrid className="w-3.5 h-3.5" />
+            <span>Accounts Grid</span>
+          </button>
+          <button
+            onClick={() => setViewMode('timeline')}
+            className={`flex items-center space-x-1.5 px-3 py-1 rounded-lg text-xs font-medium transition cursor-pointer ${
+              viewMode === 'timeline'
+                ? 'bg-white dark:bg-slate-900 text-[var(--text-main)] shadow-xs'
+                : 'text-[var(--text-main)] opacity-60 hover:opacity-100'
+            }`}
+          >
+            <Clock className="w-3.5 h-3.5" />
+            <span>Expiry Timeline</span>
+          </button>
+        </div>
       </div>
 
-      {/* Provider & Account Cards Grid */}
+      {/* VIEW 1: Expiry Timeline */}
+      {viewMode === 'timeline' && (
+        <div className="space-y-3">
+          {timelineAccounts.map((item, idx) => {
+            const { account, primaryWin, diffHours, remainingPct, isUrgentBurn, isConserve, provider } = item;
+            const rangerTier = getQuotaRangeTier(remainingPct);
+            const resetLabel = (primaryWin as any)?.resetLabel || (primaryWin?.resetsAt ? new Date(primaryWin.resetsAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Continuous');
+
+            return (
+              <div
+                key={account.id}
+                className={`p-4 rounded-2xl border bg-white dark:bg-slate-900 transition flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xs ${
+                  isUrgentBurn
+                    ? 'border-amber-400/60 dark:border-amber-500/40 ring-1 ring-amber-400/20'
+                    : isConserve
+                    ? 'border-rose-300 dark:border-rose-800'
+                    : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+                }`}
+              >
+                {/* Left: Rank, Provider, Identity */}
+                <div className="flex items-center space-x-3 min-w-[260px]">
+                  <span className="w-6 h-6 rounded-full bg-slate-100 dark:bg-slate-800 text-[11px] font-mono font-medium flex items-center justify-center text-[var(--text-main)] opacity-60">
+                    #{idx + 1}
+                  </span>
+                  <div>
+                    <div className="flex items-center space-x-2">
+                      <span className="text-[10px] font-mono uppercase tracking-wider text-blue-500 dark:text-blue-400 font-medium">
+                        {provider?.displayName || account.providerId}
+                      </span>
+                      {isUrgentBurn && (
+                        <span className="flex items-center space-x-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30 font-mono">
+                          <Flame className="w-3 h-3 fill-amber-500" />
+                          <span>Urgent Burn</span>
+                        </span>
+                      )}
+                      {isConserve && (
+                        <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/30 font-mono">
+                          Conserve
+                        </span>
+                      )}
+                    </div>
+                    <h4 className="heading-500 text-sm font-medium text-[var(--text-main)] truncate max-w-[240px]">
+                      {account.displayAlias.split('•')[0].trim()}
+                    </h4>
+                  </div>
+                </div>
+
+                {/* Center: Quota Allowance Progress */}
+                <div className="flex-1 max-w-md space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="paragraph-300 font-light text-[var(--text-main)] opacity-70">
+                      {primaryWin?.label || 'Primary Allowance'}
+                    </span>
+                    <span className={`font-mono font-medium text-xs ${rangerTier.textClass}`}>
+                      {remainingPct}% remaining
+                    </span>
+                  </div>
+                  <div className="w-full bg-slate-100 dark:bg-slate-950 rounded-full h-2 overflow-hidden border border-slate-200 dark:border-slate-800">
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${rangerTier.gradientClass}`}
+                      style={{ width: `${remainingPct}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Right: Reset Countdown & Action Button */}
+                <div className="flex items-center space-x-4 shrink-0 justify-between md:justify-end">
+                  <div className="text-right">
+                    <div className="text-xs font-mono font-medium text-[var(--text-main)] flex items-center space-x-1 justify-end">
+                      <Clock className="w-3 h-3 text-slate-400" />
+                      <span>{resetLabel}</span>
+                    </div>
+                    <div className="text-[10px] opacity-50 font-mono">
+                      {diffHours !== null ? `${Math.round(diffHours)} hours remaining` : 'Continuous Window'}
+                    </div>
+                  </div>
+
+                  {account.capabilities.executeJobs ? (
+                    <button
+                      onClick={() => onSelectAccountForJob(account)}
+                      className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer shadow-xs ${
+                        isUrgentBurn
+                          ? 'bg-amber-600 hover:bg-amber-500 text-white'
+                          : 'bg-blue-600 hover:bg-blue-500 text-white'
+                      }`}
+                    >
+                      <Play className="w-3 h-3 fill-current" />
+                      <span>{isUrgentBurn ? 'Burn Now' : 'Run Job'}</span>
+                    </button>
+                  ) : (
+                    <span className="text-[11px] font-mono opacity-40 italic">Monitor Only</span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* VIEW 2: Provider & Account Cards Grid */}
+      {viewMode === 'grid' && (
       <div className="space-y-6">
         {accountsByProvider.filter(({ accounts }) => accounts.length > 0).map(({ provider, accounts }) => (
           <div key={provider.id} className="space-y-3">
@@ -292,6 +460,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </div>
         ))}
       </div>
+      )}
     </div>
   );
 };

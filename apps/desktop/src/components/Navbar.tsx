@@ -1,9 +1,9 @@
 import React from 'react';
-import { Shield, Activity, Terminal, Stethoscope, FileText, Sun, Moon, Play } from 'lucide-react';
+import { Shield, Activity, Terminal, Stethoscope, FileText, Sun, Moon, Play, Sparkles } from 'lucide-react';
 
 interface NavbarProps {
-  activeTab: 'dashboard' | 'wizard' | 'console' | 'result' | 'doctor' | 'audit';
-  setActiveTab: (tab: 'dashboard' | 'wizard' | 'console' | 'result' | 'doctor' | 'audit') => void;
+  activeTab: 'dashboard' | 'wizard' | 'console' | 'result' | 'doctor' | 'audit' | 'skills';
+  setActiveTab: (tab: 'dashboard' | 'wizard' | 'console' | 'result' | 'doctor' | 'audit' | 'skills') => void;
   activeJobId: string | null;
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
@@ -39,7 +39,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
       <nav className="flex items-center space-x-1 bg-slate-100 dark:bg-slate-950/60 p-1 rounded-xl border border-slate-200 dark:border-slate-800">
         <button
-          onClick={() => setActiveTab('dashboard')}
+            onClick={() => setActiveTab('dashboard')}
           className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer ${
             activeTab === 'dashboard'
               ? 'bg-blue-600 text-white shadow-xs'
@@ -60,6 +60,18 @@ export const Navbar: React.FC<NavbarProps> = ({
         >
           <Play className="w-3.5 h-3.5" />
           <span>Work / Jobs</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('skills')}
+          className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer ${
+            activeTab === 'skills'
+              ? 'bg-blue-600 text-white shadow-xs'
+              : 'text-[var(--text-main)] opacity-70 hover:opacity-100 hover:bg-slate-200 dark:hover:bg-slate-800/60'
+          }`}
+        >
+          <Sparkles className="w-3.5 h-3.5" />
+          <span>Accelerators</span>
         </button>
 
         {activeJobId && (

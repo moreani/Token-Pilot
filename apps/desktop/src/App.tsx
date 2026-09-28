@@ -8,13 +8,16 @@ import { JobConsole } from './pages/JobConsole.js';
 import { JobResult } from './pages/JobResult.js';
 import { Doctor } from './pages/Doctor.js';
 import { AuditLog } from './pages/AuditLog.js';
+import { SkillsHub } from './pages/SkillsHub.js';
+import type { AcceleratorSkill } from './pages/SkillsHub.js';
 
 export const App: React.FC = () => {
   const [state, setState] = useState<ClientState>(clientService.getState());
   const [activeTab, setActiveTab] = useState<
-    'dashboard' | 'wizard' | 'console' | 'result' | 'doctor' | 'audit'
+    'dashboard' | 'wizard' | 'console' | 'result' | 'doctor' | 'audit' | 'skills'
   >('dashboard');
   const [selectedAccountForJob, setSelectedAccountForJob] = useState<Account | null>(null);
+  const [selectedSkillForJob, setSelectedSkillForJob] = useState<AcceleratorSkill | null>(null);
   const [viewingResultJobId, setViewingResultJobId] = useState<string | null>(null);
 
   // Theme Management (Light & Dark with persistence)
@@ -59,11 +62,13 @@ export const App: React.FC = () => {
   const handleUseCredit = () => {
     const recommended = state.accounts.find((a) => a.id === state.suggestion?.recommendedAccountId);
     setSelectedAccountForJob(recommended || null);
+    setSelectedSkillForJob(null);
     setActiveTab('wizard');
   };
 
   const handleSelectAccountForJob = (account: Account) => {
     setSelectedAccountForJob(account);
+    setSelectedSkillForJob(null);
     setActiveTab('wizard');
   };
 
@@ -74,6 +79,11 @@ export const App: React.FC = () => {
   const handleViewResults = (jobId: string) => {
     setViewingResultJobId(jobId);
     setActiveTab('result');
+  };
+
+  const handleLaunchJobWithSkill = (skill: AcceleratorSkill) => {
+    setSelectedSkillForJob(skill);
+    setActiveTab('wizard');
   };
 
   return (
@@ -96,15 +106,21 @@ export const App: React.FC = () => {
             onUpdateAlias={(id, alias) => clientService.updateAccountAlias(id, alias)}
             onStartJob={() => {
               setSelectedAccountForJob(null);
+              setSelectedSkillForJob(null);
               setActiveTab('wizard');
             }}
           />
+        )}
+
+        {activeTab === 'skills' && (
+          <SkillsHub onLaunchJobWithSkill={handleLaunchJobWithSkill} />
         )}
 
         {activeTab === 'wizard' && (
           <JobWizard
             state={state}
             initialAccount={selectedAccountForJob}
+            initialSkill={selectedSkillForJob}
             clientService={clientService}
             onCancel={() => setActiveTab('dashboard')}
             onLaunchJob={handleLaunchJob}

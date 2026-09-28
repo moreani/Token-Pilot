@@ -435,6 +435,7 @@ export class ClientService {
   }
 
   createRepoLabJob(params: {
+    name?: string;
     repoUrl: string;
     objective: string;
     depth: 'shallow' | 'standard' | 'deep';
@@ -479,7 +480,7 @@ export class ClientService {
     const job: Job = {
       id,
       type: 'repo_lab',
-      name: `Repo Lab: ${params.repoUrl.replace('https://github.com/', '')}`,
+      name: params.name || `Repo Lab: ${params.repoUrl.replace('https://github.com/', '')}`,
       objective: params.objective,
       state: 'DRAFT',
       providerId: activeItem.providerId,
@@ -596,7 +597,20 @@ export class ClientService {
     const objSnippet = job.objective ? job.objective.slice(0, 50) : 'repository optimization';
     onLog(`[Discovery] Querying community repos & skills for: "${objSnippet}..."`);
     await new Promise((r) => setTimeout(r, 700));
-    onLog('[Discovery] ✨ Found matching accelerator: github.com/community/ast-audit & @skill/code-guard');
+
+    const isGraph = job.name.toLowerCase().includes('graph') || (job.objective && job.objective.toLowerCase().includes('graph'));
+    const isSec = job.name.toLowerCase().includes('security') || (job.objective && (job.objective.toLowerCase().includes('cve') || job.objective.toLowerCase().includes('audit')));
+    const isTest = job.name.toLowerCase().includes('test') || (job.objective && job.objective.toLowerCase().includes('test'));
+
+    const acceleratorName = isGraph
+      ? 'github.com/moreani/Token-Pilot/graphify & @skill/generative_ui (~4.8x faster)'
+      : isSec
+      ? 'github.com/community/code-guard & @skill/cve-scanner (~5.0x faster)'
+      : isTest
+      ? 'github.com/community/test-booster & @skill/snapshot-assert (~2.9x faster)'
+      : 'github.com/community/ast-audit & @skill/code-guard (~3.2x faster)';
+
+    onLog(`[Discovery] ✨ Found matching accelerator: ${acceleratorName}`);
     onLog('[Discovery] 🚀 Bound accelerator into agent runtime to maximize speed and bypass boilerplate.');
     await new Promise((r) => setTimeout(r, 600));
 
