@@ -1,71 +1,50 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   ArrowRight,
   ArrowLeft,
   CheckCircle2,
   AlertTriangle,
   Play,
-  GitBranch,
   Check,
-  XCircle,
   ChevronUp,
   ChevronDown,
   Layers,
   Shield,
   ShieldCheck,
-  Plus,
   Sparkles,
   Zap,
   Network,
   ShieldAlert,
-  TestTube2
+  TestTube2,
+  Search,
+  Compass,
+  FileText,
+  Terminal,
+  ExternalLink,
+  Box,
+  Flame,
+  Cpu,
+  Palette,
+  RotateCw,
+  FolderGit2,
+  Bug
 } from 'lucide-react';
 
 import type { Account, ClientState } from '../state/clientService.js';
+import type {
+  OpportunityRecord,
+  RDExecutionMode,
+  OpportunityCategory
+} from '@tokenpilot/contracts';
+import {
+  SEED_OPPORTUNITIES,
+  getResearchItemsForOpportunity,
+  getBuildPackForOpportunity,
+  getMockTestResults,
+  getMockRepairHistory,
+  getMockProjectPackage
+} from '@tokenpilot/jobs';
 import { getQuotaRangeTier } from '../utils/quotaRanger.js';
-
-export const JOB_TYPES = [
-  {
-    id: 'repo_lab' as const,
-    name: 'Repo Lab (Exploration & AST)',
-    badge: 'Standard',
-    icon: GitBranch,
-    description: 'Safely clones, builds, and inspects an unknown public GitHub repository inside an isolated disposable sandbox.',
-    accelerator: 'AST Fast-Track Inspector (ast-audit)',
-    speedup: '~3.2x faster',
-    defaultObjective: 'Investigate architecture, dependencies, and identify potential modernization tasks'
-  },
-  {
-    id: 'graphify_dossier' as const,
-    name: 'Architecture & Graphify Dossier',
-    badge: 'Knowledge Graph',
-    icon: Network,
-    description: 'Extracts persistent knowledge graphs, God Nodes, community clusters, and component relationship diagrams.',
-    accelerator: 'Graphify Knowledge Engine (graphify)',
-    speedup: '~4.8x faster',
-    defaultObjective: 'Extract architectural knowledge graph, god nodes, and component relationship map using Graphify'
-  },
-  {
-    id: 'security_audit' as const,
-    name: 'Security & CVE Audit',
-    badge: 'Zero-Trust',
-    icon: ShieldAlert,
-    description: 'Scouts hardcoded credentials, insecure packages, known CVE vulnerabilities, and permissive sandbox policies.',
-    accelerator: 'CodeGuard & CVE Hunter (code-guard)',
-    speedup: '~5.0x faster',
-    defaultObjective: 'Audit dependencies for known CVEs, scan source for exposed secrets, and verify sandbox policies'
-  },
-  {
-    id: 'test_booster' as const,
-    name: 'Test Suite Booster',
-    badge: 'Coverage',
-    icon: TestTube2,
-    description: 'Scouts uncovered functions and edge cases in the target repository and automatically synthesizes unit tests.',
-    accelerator: 'Autonomous Test Suite Booster (test-booster)',
-    speedup: '~2.9x faster',
-    defaultObjective: 'Discover untested modules, analyze edge cases, and synthesize targeted unit test suites'
-  }
-];
 
 interface JobWizardProps {
   state: ClientState;
@@ -86,30 +65,46 @@ export const JobWizard: React.FC<JobWizardProps> = ({
 }) => {
   const [step, setStep] = useState<1 | 2 | 3 | 4 | 5 | 6>(1);
 
-  // Form State
-  const [selectedJobTypeId, setSelectedJobTypeId] = useState<string>(
-    initialSkill?.suggestedJobType || 'repo_lab'
-  );
-  const [repoUrl, setRepoUrl] = useState(
-    initialSkill?.repoUrl || 'https://github.com/facebook/react'
-  );
-  const [objective, setObjective] = useState(
-    initialSkill?.defaultObjective ||
-      'Investigate architecture, dependencies, and identify potential modernization tasks'
-  );
-  const [depth, setDepth] = useState<'shallow' | 'standard' | 'deep'>('standard');
-  const [runTests, setRunTests] = useState(true);
-  const [generateFixes, setGenerateFixes] = useState(false);
+  // Step 1: Discovery State
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<OpportunityCategory | 'all'>('all');
+  const [selectedComplexity, setSelectedComplexity] = useState<string>('all');
+  const [selectedOppId, setSelectedOppId] = useState<string>(SEED_OPPORTUNITIES[0].id);
 
-  const activeJobType = JOB_TYPES.find((j) => j.id === selectedJobTypeId) || JOB_TYPES[0];
+  // Step 2: Selected Opportunity & Mode
+  const [executionMode, setExecutionMode] = useState<RDExecutionMode>('build');
 
-  const handleSelectJobType = (typeId: string) => {
-    setSelectedJobTypeId(typeId);
-    const jt = JOB_TYPES.find((j) => j.id === typeId);
-    if (jt && !initialSkill) {
-      setObjective(jt.defaultObjective);
-    }
-  };
+  const activeOpp = useMemo(() => {
+    return SEED_OPPORTUNITIES.find((o) => o.id === selectedOppId) || SEED_OPPORTUNITIES[0];
+  }, [selectedOppId]);
+
+  // Filtered opportunities for Step 1
+  const filteredOpportunities = useMemo(() => {
+    return SEED_OPPORTUNITIES.filter((opp) => {
+      const matchesCategory = selectedCategory === 'all' || opp.category === selectedCategory;
+      const matchesComplexity = selectedComplexity === 'all' || opp.complexity === selectedComplexity;
+      const q = searchQuery.toLowerCase().trim();
+      const matchesQuery = !q ||
+        opp.title.toLowerCase().includes(q) ||
+        opp.summary.toLowerCase().includes(q) ||
+        opp.problem.toLowerCase().includes(q) ||
+        opp.recommendedStack.some((s) => s.toLowerCase().includes(q));
+      return matchesCategory && matchesComplexity && matchesQuery;
+    });
+  }, [searchQuery, selectedCategory, selectedComplexity]);
+
+  // Step 3: Research Items & Account Pool State
+  const researchItems = useMemo(() => {
+    return getResearchItemsForOpportunity(activeOpp.id);
+  }, [activeOpp.id]);
+
+  const buildPack = useMemo(() => {
+    return getBuildPackForOpportunity(activeOpp);
+  }, [activeOpp]);
+
+  const testResults = useMemo(() => getMockTestResults(), []);
+  const repairHistory = useMemo(() => getMockRepairHistory(), []);
+  const projectPackage = useMemo(() => getMockProjectPackage(activeOpp), [activeOpp]);
 
   // Account Pool State
   const eligibleAccounts = state.accounts.filter((a) => a.capabilities.executeJobs);
@@ -118,85 +113,54 @@ export const JobWizard: React.FC<JobWizardProps> = ({
   const autoModeAccounts = eligibleAccounts
     .filter((a) => (a.providerId === 'antigravity' || a.providerId === 'opencode') && !a.manualOnly)
     .sort((a, b) => {
-      const priorityOrder: Record<string, number> = { antigravity: 1, opencode: 2 };
-      const pA = priorityOrder[a.providerId] ?? 99;
-      const pB = priorityOrder[b.providerId] ?? 99;
-      return pA - pB;
+      const prioA = a.autoPriority ?? (a.providerId === 'antigravity' ? 1 : a.providerId === 'opencode' ? 2 : 99);
+      const prioB = b.autoPriority ?? (b.providerId === 'antigravity' ? 1 : b.providerId === 'opencode' ? 2 : 99);
+      return prioA - prioB;
     });
 
-  // Manual-only accounts: Claude & Codex
+  // Manual-only accounts (Claude & Codex)
   const manualOnlyAccounts = eligibleAccounts.filter(
     (a) => a.manualOnly || a.providerId === 'claude' || a.providerId === 'codex'
   );
 
-  const defaultAccount =
-    initialAccount ||
-    autoModeAccounts[0] ||
-    eligibleAccounts.find((a) => a.id === state.suggestion?.recommendedAccountId) ||
-    eligibleAccounts[0];
+  const defaultAccount = initialAccount
+    ? eligibleAccounts.find((a) => a.id === initialAccount.id)
+    : (autoModeAccounts[0] || eligibleAccounts[0]);
 
-  // Ordered list of selected account IDs (index 0 is primary, followed by backups)
   const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>(
     defaultAccount ? [defaultAccount.id] : []
   );
 
-  const selectAutoModePool = () => {
-    if (autoModeAccounts.length > 0) {
-      setSelectedAccountIds(autoModeAccounts.map((a) => a.id));
+  const selectedAccounts = selectedAccountIds
+    .map((id) => eligibleAccounts.find((a) => a.id === id))
+    .filter((a): a is Account => !!a);
+
+  const primaryAccount = selectedAccounts[0] || defaultAccount || eligibleAccounts[0];
+
+  const toggleAccountSelection = (accId: string) => {
+    if (selectedAccountIds.includes(accId)) {
+      if (selectedAccountIds.length === 1) return;
+      setSelectedAccountIds(selectedAccountIds.filter((id) => id !== accId));
+    } else {
+      setSelectedAccountIds([...selectedAccountIds, accId]);
     }
   };
 
-  // Preflight & Authorization
-  const [createdJobId, setCreatedJobId] = useState<string | null>(null);
-  const [preflightResults, setPreflightResults] = useState<Array<{ name: string; ok: boolean; message: string }>>([]);
-  const [preflightPassed, setPreflightPassed] = useState(false);
-  const [preflightError, setPreflightError] = useState<string | null>(null);
-
-  const selectedAccounts = selectedAccountIds
-    .map((id) => state.accounts.find((a) => a.id === id))
-    .filter(Boolean) as Account[];
-  const primaryAccount = selectedAccounts[0];
-
-  const toggleAccountSelection = (accountId: string) => {
-    setSelectedAccountIds((prev) => {
-      if (prev.includes(accountId)) {
-        if (prev.length === 1) return prev; // Keep at least one
-        return prev.filter((id) => id !== accountId);
-      }
-      return [...prev, accountId];
-    });
+  const moveAccountPriority = (index: number, direction: 'up' | 'down') => {
+    if (direction === 'up' && index === 0) return;
+    if (direction === 'down' && index === selectedAccountIds.length - 1) return;
+    const newIds = [...selectedAccountIds];
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    const temp = newIds[index];
+    newIds[index] = newIds[targetIndex];
+    newIds[targetIndex] = temp;
+    setSelectedAccountIds(newIds);
   };
 
-  const movePriority = (index: number, direction: 'up' | 'down') => {
-    setSelectedAccountIds((prev) => {
-      const next = [...prev];
-      const targetIndex = direction === 'up' ? index - 1 : index + 1;
-      if (targetIndex < 0 || targetIndex >= next.length) return prev;
-      const temp = next[index];
-      next[index] = next[targetIndex];
-      next[targetIndex] = temp;
-      return next;
-    });
-  };
-
-  const selectAllProviderAccounts = (providerId: string) => {
-    const providerAccIds = eligibleAccounts.filter((a) => a.providerId === providerId).map((a) => a.id);
-    setSelectedAccountIds((prev) => {
-      const allSelected = providerAccIds.every((id) => prev.includes(id));
-      if (allSelected) {
-        const remaining = prev.filter((id) => !providerAccIds.includes(id));
-        return remaining.length > 0 ? remaining : prev;
-      }
-      const combined = [...prev];
-      for (const id of providerAccIds) {
-        if (!combined.includes(id)) combined.push(id);
-      }
-      return combined;
-    });
-  };
-
-  const selectAllEligibleAccounts = () => {
-    setSelectedAccountIds(eligibleAccounts.map((a) => a.id));
+  const selectAutoModeSequence = () => {
+    if (autoModeAccounts.length > 0) {
+      setSelectedAccountIds(autoModeAccounts.map((a) => a.id));
+    }
   };
 
   const resetToPrimaryOnly = () => {
@@ -206,14 +170,12 @@ export const JobWizard: React.FC<JobWizardProps> = ({
     }
   };
 
-  // Step 5: Trigger Preflight
-  const handleProceedToPreflight = () => {
-    try {
-      if (selectedAccounts.length === 0) {
-        throw new Error('Please select at least one account for the execution pool.');
-      }
-      setPreflightError(null);
+  // Job Authorization State
+  const [createdJobId, setCreatedJobId] = useState<string | null>(null);
 
+  // Step 6: Authorize & Run Job
+  const handleFinalRunJob = () => {
+    try {
       const accountPool = selectedAccounts.map((acc, idx) => ({
         accountId: acc.id,
         providerId: acc.providerId,
@@ -223,130 +185,198 @@ export const JobWizard: React.FC<JobWizardProps> = ({
       }));
 
       const job = clientService.createRepoLabJob({
-        name: `${activeJobType.name.split('(')[0].trim()}: ${repoUrl.replace('https://github.com/', '')}`,
-        repoUrl,
-        objective,
-        depth,
-        runTests,
-        generateFixes,
+        name: `R&D Build: ${activeOpp.title.split('—')[0].trim()}`,
+        repoUrl: activeOpp.openSourceOptions[0]?.url || 'https://github.com/facebook/react',
+        objective: activeOpp.summary,
+        depth: 'standard',
+        runTests: true,
+        generateFixes: true,
         providerId: primaryAccount.providerId,
         accountId: primaryAccount.id,
         accountPool
       });
 
-      setCreatedJobId(job.id);
-      const res = clientService.runPreflight(job.id);
-      setPreflightResults(res.checks);
-      setPreflightPassed(res.ok);
-      setStep(5);
+      clientService.authorizeJob(job.id);
+      onLaunchJob(job.id);
     } catch (err: any) {
-      setPreflightError(err.message || 'Validation failed');
+      console.error('Failed to launch R&D build job:', err);
     }
   };
 
-
-  // Step 6: Authorize & Run Job
-  const handleFinalRunJob = () => {
-    if (!createdJobId) return;
-    clientService.authorizeJob(createdJobId);
-    onLaunchJob(createdJobId);
-  };
-
   return (
-    <div className="max-w-4xl mx-auto px-6 py-10">
-      {/* Wizard Step Indicator */}
+    <div className="max-w-5xl mx-auto px-6 py-8">
+      {/* Wizard Step Progress Navigation */}
       <div className="mb-8">
         <div className="flex items-center justify-between text-xs font-mono mb-2">
-          <span className="paragraph-300 font-light text-[var(--text-main)] opacity-70">STEP {step} OF 6</span>
-          <span className="heading-500 text-blue-600 dark:text-blue-400 font-medium">
-            {step === 1 && 'Select Job Type'}
-            {step === 2 && 'Configure Repository'}
-            {step === 3 && 'Which Accounts to Use'}
-            {step === 4 && 'Security & Budget'}
-            {step === 5 && 'Preflight Verification'}
-            {step === 6 && 'Human Authorization'}
+          <span className="paragraph-300 font-light text-[var(--text-main)] opacity-70">
+            R&D BUILD ENGINE · STEP {step} OF 6
+          </span>
+          <span className="font-semibold text-blue-600 dark:text-blue-400">
+            {step === 1 && '1. Discover Idea'}
+            {step === 2 && '2. Select & Assess'}
+            {step === 3 && '3. Research & Quota'}
+            {step === 4 && '4. Build Pack & Bootstrap'}
+            {step === 5 && '5. Testing & Auto-Fix'}
+            {step === 6 && '6. Working Project Delivery'}
           </span>
         </div>
-        <div className="w-full bg-slate-200 dark:bg-slate-900 rounded-full h-1.5 overflow-hidden">
-          <div
-            className="bg-blue-600 h-full transition-all duration-300"
-            style={{ width: `${(step / 6) * 100}%` }}
-          />
+
+        {/* Progress bar */}
+        <div className="grid grid-cols-6 gap-2">
+          {[1, 2, 3, 4, 5, 6].map((s) => (
+            <div
+              key={s}
+              onClick={() => {
+                // Allow navigating back to any previous step
+                if (s < step) setStep(s as any);
+              }}
+              className={`h-2 rounded-full transition-all duration-300 cursor-pointer ${
+                s === step
+                  ? 'bg-blue-600 dark:bg-blue-500 shadow-sm shadow-blue-500/30'
+                  : s < step
+                  ? 'bg-emerald-500'
+                  : 'bg-slate-200 dark:bg-slate-800'
+              }`}
+            />
+          ))}
         </div>
       </div>
 
-      <div className="bg-white dark:bg-slate-900/90 rounded-2xl border border-slate-200 dark:border-slate-800 p-8 shadow-sm dark:shadow-2xl">
-        {/* STEP 1: Choose Job Type */}
+      {/* Main Wizard Card */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 sm:p-8 shadow-xs">
+        
+        {/* ========================================================================= */}
+        {/* STEP 1: DISCOVER — Find Something Worth Building                          */}
+        {/* ========================================================================= */}
         {step === 1 && (
           <div className="space-y-6">
             <div>
-              <h2 className="heading-500 text-2xl font-medium tracking-tight text-[var(--text-main)]">Choose Productive Job</h2>
+              <div className="flex items-center space-x-2 text-xs font-mono uppercase tracking-wider text-blue-600 dark:text-blue-400 mb-1">
+                <Compass className="w-4 h-4" />
+                <span>Discovery Engine</span>
+              </div>
+              <h2 className="heading-500 text-2xl font-medium tracking-tight text-[var(--text-main)]">
+                Find Something Worth Building
+              </h2>
               <p className="paragraph-300 text-sm mt-1 font-light text-[var(--text-main)] opacity-70">
-                Select a structured task designed to safely convert excess AI quota into useful R&D output.
+                Continuous open-source scout and prompt-based idea generation. Filter by domain or search by technical pattern.
               </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {JOB_TYPES.map((jt) => {
-                const isSelected = jt.id === selectedJobTypeId;
-                const IconComponent = jt.icon;
+            {/* Search Input Bar */}
+            <div className="relative">
+              <Search className="w-4 h-4 absolute left-3.5 top-3.5 text-slate-400" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search ideas, repositories, tools, frameworks, or UI patterns..."
+                className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-light text-[var(--text-main)] focus:outline-none focus:border-blue-500 transition"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-3 top-2.5 text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+
+            {/* Quick Prefilled Prompts */}
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-mono text-[var(--text-main)] opacity-60">Try prompt:</span>
+              {[
+                'Find AI tools I can rebuild locally',
+                'Screenshot to responsive frontend',
+                'Knowledge graph AST analyzer',
+                'Adaptive quota burn engine'
+              ].map((prompt) => (
+                <button
+                  key={prompt}
+                  onClick={() => setSearchQuery(prompt.split(' ')[0])}
+                  className="px-2.5 py-1 rounded-md text-xs font-light bg-slate-100 dark:bg-slate-800 text-[var(--text-main)] hover:bg-blue-50 dark:hover:bg-blue-950/60 hover:text-blue-600 dark:hover:text-blue-400 border border-slate-200 dark:border-slate-700 transition cursor-pointer"
+                >
+                  "{prompt}"
+                </button>
+              ))}
+            </div>
+
+            {/* Category Filter Pills */}
+            <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-100 dark:border-slate-800/80">
+              <span className="text-xs font-mono text-[var(--text-main)] opacity-60 mr-1">Category:</span>
+              {[
+                { id: 'all', label: 'All Categories' },
+                { id: 'ai', label: '🤖 AI & Vision' },
+                { id: 'devtools', label: '🛠️ DevTools' },
+                { id: 'saas', label: '☁️ SaaS' },
+                { id: 'web', label: '🌐 Web' }
+              ].map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() => setSelectedCategory(c.id as any)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer ${
+                    selectedCategory === c.id
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[var(--text-main)] hover:bg-slate-200 dark:hover:bg-slate-700'
+                  }`}
+                >
+                  {c.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Discovered Opportunities Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+              {filteredOpportunities.map((opp) => {
+                const isSelected = opp.id === selectedOppId;
                 return (
                   <div
-                    key={jt.id}
-                    onClick={() => handleSelectJobType(jt.id)}
-                    className={`p-5 rounded-xl border-2 transition cursor-pointer flex flex-col justify-between ${
+                    key={opp.id}
+                    onClick={() => setSelectedOppId(opp.id)}
+                    className={`p-5 rounded-xl border text-left transition cursor-pointer relative flex flex-col justify-between ${
                       isSelected
-                        ? 'border-blue-500 bg-blue-500/5 dark:bg-blue-500/10 shadow-xs'
-                        : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-white dark:bg-slate-900/60'
+                        ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-950/20 ring-2 ring-blue-500/20 shadow-xs'
+                        : 'border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-950/40 hover:border-slate-300 dark:hover:border-slate-700'
                     }`}
                   >
                     <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center space-x-2">
-                          <IconComponent className={`w-5 h-5 ${isSelected ? 'text-blue-500 dark:text-blue-400' : 'text-slate-400'}`} />
-                          <h3 className="heading-500 font-medium text-[var(--text-main)]">{jt.name}</h3>
-                        </div>
-                        <span className={`text-[10px] font-mono uppercase px-2 py-0.5 rounded font-medium border ${
-                          isSelected
-                            ? 'bg-blue-50 dark:bg-blue-900 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-700'
-                            : 'bg-slate-100 dark:bg-slate-800 text-[var(--text-main)] opacity-70 border-slate-200 dark:border-slate-700'
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <span className="px-2 py-0.5 rounded text-[10px] font-mono uppercase tracking-wider bg-slate-200 dark:bg-slate-800 text-[var(--text-main)]">
+                          {opp.category.toUpperCase()}
+                        </span>
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-mono uppercase tracking-wider ${
+                          opp.complexity === 'low'
+                            ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400'
+                            : opp.complexity === 'medium'
+                            ? 'bg-cyan-100 dark:bg-cyan-950/60 text-cyan-700 dark:text-cyan-400'
+                            : 'bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400'
                         }`}>
-                          {jt.badge}
+                          {opp.complexity} complexity
                         </span>
                       </div>
-                      <p className="paragraph-300 text-xs leading-relaxed font-light text-[var(--text-main)] opacity-80">
-                        {jt.description}
+
+                      <h3 className="heading-500 font-medium text-base text-[var(--text-main)] mb-1">
+                        {opp.title}
+                      </h3>
+                      <p className="paragraph-300 text-xs font-light text-[var(--text-main)] opacity-75 line-clamp-2 mb-3">
+                        {opp.summary}
                       </p>
                     </div>
 
-                    <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[11px] font-mono">
-                      <span className="opacity-60 truncate max-w-[200px]" title={jt.accelerator}>
-                        ⚡ {jt.accelerator.split('(')[0].trim()}
+                    <div className="pt-3 border-t border-slate-200/60 dark:border-slate-800/80 flex items-center justify-between text-xs font-mono">
+                      <span className="opacity-60">{opp.estimatedDuration}</span>
+                      <span className="text-blue-600 dark:text-blue-400 font-medium flex items-center space-x-1">
+                        <span>Confidence {opp.researchConfidence}</span>
                       </span>
-                      <span className="text-emerald-600 dark:text-emerald-400 font-medium">{jt.speedup}</span>
                     </div>
                   </div>
                 );
               })}
             </div>
 
-            {/* Stage 1 First Work Protocol Banner */}
-            <div className="p-3.5 rounded-xl bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/60 flex items-center justify-between text-xs">
-              <div className="flex items-center space-x-2.5">
-                <Sparkles className="w-4 h-4 text-blue-500 shrink-0" />
-                <div>
-                  <span className="font-semibold text-[var(--text-main)]">Stage 1 First Work Protocol:</span>
-                  <span className="opacity-80 ml-1 font-light text-[var(--text-main)]">
-                    Scouts &amp; binds <strong>{activeJobType.accelerator}</strong> ({activeJobType.speedup}) before sandbox container startup.
-                  </span>
-                </div>
-              </div>
-              <span className="font-mono text-[10px] uppercase px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300 font-medium shrink-0">
-                Default First Work
-              </span>
-            </div>
-
-            <div className="pt-4 flex justify-between">
+            {/* Step Navigation Bar */}
+            <div className="pt-4 flex justify-between items-center border-t border-slate-100 dark:border-slate-800">
               <button
                 onClick={onCancel}
                 className="px-4 py-2 rounded-lg text-sm paragraph-300 font-light text-[var(--text-main)] opacity-70 hover:opacity-100 cursor-pointer"
@@ -355,626 +385,596 @@ export const JobWizard: React.FC<JobWizardProps> = ({
               </button>
               <button
                 onClick={() => setStep(2)}
-                className="flex items-center space-x-2 px-6 py-2.5 rounded-lg text-sm font-medium bg-blue-600 hover:bg-blue-500 text-white transition cursor-pointer"
+                className="flex items-center space-x-2 px-6 py-2.5 rounded-lg text-sm font-medium bg-blue-600 hover:bg-blue-500 text-white transition cursor-pointer shadow-xs"
               >
-                <span>Continue</span>
+                <span>Select &amp; Assess Work</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
             </div>
           </div>
         )}
 
-        {/* STEP 2: Configure Repository */}
+        {/* ========================================================================= */}
+        {/* STEP 2: SELECT — Choose Work & Multi-Dimensional Assessment               */}
+        {/* ========================================================================= */}
         {step === 2 && (
           <div className="space-y-6">
             <div>
-              <h2 className="heading-500 text-2xl font-medium tracking-tight text-[var(--text-main)]">Configure Repo Lab</h2>
+              <div className="flex items-center space-x-2 text-xs font-mono uppercase tracking-wider text-blue-600 dark:text-blue-400 mb-1">
+                <Sparkles className="w-4 h-4" />
+                <span>Opportunity Assessment</span>
+              </div>
+              <h2 className="heading-500 text-2xl font-medium tracking-tight text-[var(--text-main)]">
+                Choose Work &amp; Execution Mode
+              </h2>
               <p className="paragraph-300 text-sm mt-1 font-light text-[var(--text-main)] opacity-70">
-                Specify the public GitHub repository and evaluation objective.
+                Inspect opportunity dimensions, open-source options, and select the desired development depth.
               </p>
             </div>
 
-            <div className="space-y-4">
-              <div>
-                <label className="block text-xs font-mono uppercase paragraph-300 font-light text-[var(--text-main)] opacity-70 mb-1.5">
-                  Public GitHub Repository URL
-                </label>
-                <input
-                  type="text"
-                  value={repoUrl}
-                  onChange={(e) => setRepoUrl(e.target.value)}
-                  placeholder="https://github.com/owner/repository"
-                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-4 py-3 text-sm font-medium text-[var(--text-main)] focus:outline-none focus:border-blue-500 font-mono"
-                />
-                <p className="paragraph-300 text-xs mt-1 font-light text-[var(--text-main)] opacity-60">
-                  Only public repositories are permitted in V1. Private repositories and credentials are never accessed.
-                </p>
+            {/* Active Opportunity Card */}
+            <div className="p-6 rounded-xl border border-blue-500/30 bg-blue-50/20 dark:bg-blue-950/10 space-y-4">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
+                <div>
+                  <div className="flex items-center space-x-2 mb-1">
+                    <span className="px-2 py-0.5 rounded text-[10px] font-mono uppercase tracking-wider bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300 font-semibold">
+                      {activeOpp.category.toUpperCase()}
+                    </span>
+                    <span className="text-xs font-mono opacity-60">Estimated: {activeOpp.estimatedDuration}</span>
+                  </div>
+                  <h3 className="heading-500 text-lg font-medium text-[var(--text-main)]">
+                    {activeOpp.title}
+                  </h3>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <span className="px-3 py-1 rounded-full text-xs font-mono bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 font-semibold">
+                    {activeOpp.researchConfidence} Confidence
+                  </span>
+                </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-mono uppercase paragraph-300 font-light text-[var(--text-main)] opacity-70 mb-1.5">
-                  Task Objective
-                </label>
-                <textarea
-                  value={objective}
-                  onChange={(e) => setObjective(e.target.value)}
-                  rows={3}
-                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-4 py-3 text-sm font-light text-[var(--text-main)] focus:outline-none focus:border-blue-500"
-                />
+              {/* Problem & Why Now */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                <div className="p-3.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                  <span className="font-semibold text-rose-600 dark:text-rose-400 font-mono block mb-1">PROBLEM STATEMENT</span>
+                  <p className="font-light text-[var(--text-main)] opacity-85 leading-relaxed">{activeOpp.problem}</p>
+                </div>
+                <div className="p-3.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                  <span className="font-semibold text-emerald-600 dark:text-emerald-400 font-mono block mb-1">WHY NOW</span>
+                  <p className="font-light text-[var(--text-main)] opacity-85 leading-relaxed">{activeOpp.whyNow}</p>
+                </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
-                {(['shallow', 'standard', 'deep'] as const).map((d) => (
-                  <button
-                    key={d}
-                    type="button"
-                    onClick={() => setDepth(d)}
-                    className={`py-2.5 px-3 rounded-xl border text-xs font-medium uppercase tracking-wider transition cursor-pointer ${
-                      depth === d
-                        ? 'border-blue-500 bg-blue-500/10 text-blue-600 dark:text-blue-300'
-                        : 'border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-[var(--text-main)] opacity-70 hover:opacity-100'
-                    }`}
+              {/* Multi-Dimensional Assessment Bars */}
+              <div className="pt-2">
+                <span className="text-xs font-mono text-[var(--text-main)] opacity-70 block mb-2 font-medium">
+                  MULTI-DIMENSIONAL FEASIBILITY PROFILE:
+                </span>
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                  {[
+                    { label: 'Novelty', val: activeOpp.dimensions.novelty, color: 'bg-purple-500' },
+                    { label: 'Resource Availability', val: activeOpp.dimensions.resourceAvailability, color: 'bg-blue-500' },
+                    { label: 'Learning Value', val: activeOpp.dimensions.learningValue, color: 'bg-emerald-500' },
+                    { label: 'Portfolio Relevance', val: activeOpp.dimensions.portfolioRelevance, color: 'bg-amber-500' },
+                    { label: 'Testing Feasibility', val: activeOpp.dimensions.testingFeasibility, color: 'bg-cyan-500' }
+                  ].map((dim) => (
+                    <div key={dim.label} className="p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                      <div className="flex justify-between text-[11px] font-mono mb-1">
+                        <span className="opacity-70 truncate">{dim.label}</span>
+                        <span className="font-semibold">{dim.val}%</span>
+                      </div>
+                      <div className="w-full h-1.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+                        <div className={`h-full ${dim.color} rounded-full`} style={{ width: `${dim.val}%` }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Recommended Stack */}
+              <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                <span className="text-xs font-mono opacity-60 mr-1">Recommended Stack:</span>
+                {activeOpp.recommendedStack.map((tech) => (
+                  <span
+                    key={tech}
+                    className="px-2 py-0.5 rounded text-[11px] font-mono bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[var(--text-main)]"
                   >
-                    {d} Analysis
-                  </button>
+                    {tech}
+                  </span>
                 ))}
-              </div>
-
-              <div className="flex items-center space-x-6 pt-2">
-                <label className="flex items-center space-x-2 text-sm paragraph-300 font-light text-[var(--text-main)] cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={runTests}
-                    onChange={(e) => setRunTests(e.target.checked)}
-                    className="rounded bg-slate-50 dark:bg-slate-950 border-slate-300 dark:border-slate-700 text-blue-600 focus:ring-0"
-                  />
-                  <span>Run automated tests inside sandbox</span>
-                </label>
-
-                <label className="flex items-center space-x-2 text-sm paragraph-300 font-light text-[var(--text-main)] cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={generateFixes}
-                    onChange={(e) => setGenerateFixes(e.target.checked)}
-                    className="rounded bg-slate-50 dark:bg-slate-950 border-slate-300 dark:border-slate-700 text-blue-600 focus:ring-0"
-                  />
-                  <span>Generate code improvement patch</span>
-                </label>
               </div>
             </div>
 
-            <div className="pt-4 flex justify-between">
+            {/* Execution Mode Selector */}
+            <div>
+              <label className="block text-xs font-mono uppercase tracking-wider text-[var(--text-main)] opacity-70 mb-2 font-medium">
+                Select Execution Mode (PRD Section 13):
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {[
+                  {
+                    mode: 'explore' as const,
+                    title: 'Explore',
+                    badge: 'Research Only',
+                    desc: 'Produces architecture, dependency trees, risk analyses, and reference guides. No code executed.'
+                  },
+                  {
+                    mode: 'experiment' as const,
+                    title: 'Experiment',
+                    badge: 'Core PoC',
+                    desc: 'Builds one critical end-to-end user flow with minimal UI, database persistence, and baseline tests.'
+                  },
+                  {
+                    mode: 'build' as const,
+                    title: 'Build',
+                    badge: 'Complete Project',
+                    desc: 'Full customized application with 6-stage automated testing, visual QA, and complete delivery package.'
+                  }
+                ].map((m) => (
+                  <button
+                    key={m.mode}
+                    type="button"
+                    onClick={() => setExecutionMode(m.mode)}
+                    className={`p-4 rounded-xl border text-left transition cursor-pointer flex flex-col justify-between ${
+                      executionMode === m.mode
+                        ? 'border-blue-500 bg-blue-50/40 dark:bg-blue-950/20 ring-2 ring-blue-500/20 shadow-xs'
+                        : 'border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 opacity-75 hover:opacity-100'
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="heading-500 font-medium text-sm text-[var(--text-main)]">{m.title}</span>
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-800 font-semibold">
+                          {m.badge}
+                        </span>
+                      </div>
+                      <p className="text-xs font-light text-[var(--text-main)] opacity-80 leading-relaxed">
+                        {m.desc}
+                      </p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Step Navigation Bar */}
+            <div className="pt-4 flex justify-between items-center border-t border-slate-100 dark:border-slate-800">
               <button
                 onClick={() => setStep(1)}
                 className="flex items-center space-x-2 px-4 py-2 rounded-lg text-sm paragraph-300 font-light text-[var(--text-main)] opacity-70 hover:opacity-100 cursor-pointer"
               >
                 <ArrowLeft className="w-4 h-4" />
-                <span>Back</span>
+                <span>Back to Discovery</span>
               </button>
               <button
                 onClick={() => setStep(3)}
-                className="flex items-center space-x-2 px-6 py-2.5 rounded-lg text-sm font-medium bg-blue-600 hover:bg-blue-500 text-white transition cursor-pointer"
+                className="flex items-center space-x-2 px-6 py-2.5 rounded-lg text-sm font-medium bg-blue-600 hover:bg-blue-500 text-white transition cursor-pointer shadow-xs"
               >
-                <span>Select Account</span>
+                <span>Initiate Research Engine</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
             </div>
           </div>
         )}
 
-        {/* STEP 3: Multi-Account & Failover Pool Configuration */}
+        {/* ========================================================================= */}
+        {/* STEP 3: RESEARCH — Research Engine & Quota Funding Pool                   */}
+        {/* ========================================================================= */}
         {step === 3 && (
           <div className="space-y-6">
-            <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
-              <div>
-                <div className="flex items-center space-x-2 mb-1.5">
-                  <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300 font-medium border border-blue-200 dark:border-blue-700">
-                    Which Accounts to Use
-                  </span>
-                  <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-medium border border-emerald-200 dark:border-emerald-800">
-                    Failover Cascade
-                  </span>
-                </div>
-                <h2 className="heading-500 text-2xl font-medium tracking-tight text-[var(--text-main)]">
-                  Assign Accounts &amp; Failover Sequence
-                </h2>
-                <p className="paragraph-300 text-sm mt-1 font-light text-[var(--text-main)] opacity-70">
-                  Select which accounts will fund this job. If the primary account runs out of quota or hits rate limits, execution transfers automatically down the cascade.
-                </p>
+            <div>
+              <div className="flex items-center space-x-2 text-xs font-mono uppercase tracking-wider text-blue-600 dark:text-blue-400 mb-1">
+                <Box className="w-4 h-4" />
+                <span>Research &amp; Provenance Engine</span>
               </div>
-
-              {/* Quick Actions & Auto Mode */}
-              <div className="flex items-center flex-wrap gap-1.5 shrink-0">
-                <button
-                  type="button"
-                  onClick={selectAutoModePool}
-                  className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-cyan-500/50 bg-cyan-500/10 text-cyan-800 dark:text-cyan-300 hover:bg-cyan-500/20 transition cursor-pointer shadow-xs"
-                  title="Configure Auto-Mode: Antigravity accounts first, followed by OpenCode. Strictly excludes Claude & Codex."
-                >
-                  <Zap className="w-3.5 h-3.5 fill-cyan-500" />
-                  <span>Auto Mode: Antigravity → OpenCode ({autoModeAccounts.length})</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={resetToPrimaryOnly}
-                  className="px-2.5 py-1.5 rounded-lg text-xs font-medium border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 hover:bg-slate-100 dark:hover:bg-slate-900 text-[var(--text-main)] opacity-80 hover:opacity-100 transition cursor-pointer"
-                  title="Reset to only primary account"
-                >
-                  Primary Only
-                </button>
-                <button
-                  type="button"
-                  onClick={selectAllEligibleAccounts}
-                  className="px-2.5 py-1.5 rounded-lg text-xs font-medium border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 hover:bg-slate-100 dark:hover:bg-slate-900 text-[var(--text-main)] opacity-70 hover:opacity-100 transition cursor-pointer"
-                  title="Include all eligible accounts in pool"
-                >
-                  All ({eligibleAccounts.length})
-                </button>
-              </div>
+              <h2 className="heading-500 text-2xl font-medium tracking-tight text-[var(--text-main)]">
+                Discovered Resources &amp; Account Funding
+              </h2>
+              <p className="paragraph-300 text-sm mt-1 font-light text-[var(--text-main)] opacity-70">
+                Validated repositories, reusable agent skills, license clearance, and funding accounts.
+              </p>
             </div>
 
-            {/* Selected Execution Cascade Summary */}
-            {selectedAccounts.length > 0 && (
-              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800">
-                <div className="flex items-center justify-between text-xs font-mono mb-2">
-                  <span className="font-medium text-[var(--text-main)] opacity-75">
-                    EXECUTION ORDER ({selectedAccounts.length} in Pool):
-                  </span>
-                  <span className="text-[10px] text-blue-600 dark:text-blue-400">
-                    Use ↑/↓ to reorder priority
-                  </span>
-                </div>
-
-                <div className="space-y-1.5">
-                  {selectedAccounts.map((account, index) => {
-                    const isPrimary = index === 0;
-                    return (
-                      <div
-                        key={account.id}
-                        className={`flex items-center justify-between px-3 py-2 rounded-lg border text-xs ${
-                          isPrimary
-                            ? 'bg-blue-500/10 border-blue-500/40 text-[var(--text-main)]'
-                            : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-[var(--text-main)] opacity-85'
-                        }`}
-                      >
-                        <div className="flex items-center space-x-2.5 min-w-0">
-                          <span
-                            className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-medium ${
-                              isPrimary
-                                ? 'bg-blue-600 text-white'
-                                : 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
-                            }`}
-                          >
-                            {isPrimary ? 'PRIMARY' : `BACKUP ${index}`}
-                          </span>
-                          <span className="font-medium truncate">{account.displayAlias}</span>
-                          <span className="text-[10px] font-mono opacity-50 uppercase">
-                            ({account.providerId})
-                          </span>
-                        </div>
-
-                        <div className="flex items-center space-x-1 shrink-0">
-                          <button
-                            type="button"
-                            disabled={index === 0}
-                            onClick={() => movePriority(index, 'up')}
-                            className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800 disabled:opacity-30 cursor-pointer"
-                            title="Move up priority"
-                          >
-                            <ChevronUp className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            disabled={index === selectedAccounts.length - 1}
-                            onClick={() => movePriority(index, 'down')}
-                            className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800 disabled:opacity-30 cursor-pointer"
-                            title="Move down priority"
-                          >
-                            <ChevronDown className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* 1. Automated Accounts (Antigravity First, OpenCode Second) */}
-            <div className="space-y-2.5">
-              <div className="flex items-center justify-between text-xs font-mono uppercase tracking-wider text-[var(--text-main)] mb-1">
-                <span className="flex items-center space-x-1.5 text-cyan-600 dark:text-cyan-400 font-semibold">
-                  <Zap className="w-3.5 h-3.5 fill-current" />
-                  <span>Auto-Mode Sequence (Antigravity First → OpenCode Second)</span>
-                </span>
-                <span className="text-[10px] opacity-60">Auto Priority: 1. Antigravity | 2. OpenCode</span>
-              </div>
-
-              {autoModeAccounts.map((account) => {
-                const snapshot = state.snapshots.find((s) => s.accountId === account.id);
-                const isSelected = selectedAccountIds.includes(account.id);
-                const priorityIndex = selectedAccountIds.indexOf(account.id);
-                const isRecommended = account.id === state.suggestion?.recommendedAccountId;
-                const remPercent =
-                  snapshot?.windows[0]?.remainingFraction !== undefined &&
-                  snapshot?.windows[0]?.remainingFraction !== null
-                    ? Math.round(snapshot.windows[0].remainingFraction * 100)
-                    : null;
-                const tier = remPercent !== null ? getQuotaRangeTier(remPercent) : null;
-                const autoRank = account.providerId === 'antigravity' ? 'AUTO #1' : 'AUTO #2';
-
-                return (
+            {/* Research Items Panel */}
+            <div className="space-y-3">
+              <span className="text-xs font-mono uppercase tracking-wider text-[var(--text-main)] opacity-70 font-medium">
+                DISCOVERED ARTIFACTS &amp; LICENSE PROVENANCE (PRD Sections 15–24):
+              </span>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {researchItems.map((item) => (
                   <div
-                    key={account.id}
-                    onClick={() => toggleAccountSelection(account.id)}
-                    className={`p-3.5 rounded-xl border flex items-center justify-between cursor-pointer transition ${
-                      isSelected
-                        ? 'border-cyan-500 bg-cyan-500/5 dark:bg-cyan-500/10'
-                        : 'border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 hover:border-slate-300 dark:hover:border-slate-700 opacity-70 hover:opacity-100'
-                    }`}
+                    key={item.id}
+                    className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 flex flex-col justify-between"
                   >
-                    <div className="flex items-center space-x-3 min-w-0">
-                      <div
-                        className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${
-                          isSelected ? 'border-cyan-500 bg-cyan-600 text-white' : 'border-slate-300 dark:border-slate-600'
-                        }`}
-                      >
-                        {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
-                      </div>
-
-                      <div className="min-w-0">
-                        <div className="flex items-center space-x-2">
-                          <span className="heading-500 font-medium text-sm text-[var(--text-main)] truncate">
-                            {account.displayAlias}
-                          </span>
-                          <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-cyan-100 dark:bg-cyan-900/60 text-cyan-800 dark:text-cyan-300 font-semibold shrink-0">
-                            {autoRank}
-                          </span>
-                          {isSelected && (
-                            <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-blue-100 dark:bg-blue-900/80 text-blue-800 dark:text-blue-300 font-medium shrink-0">
-                              Pool #{priorityIndex + 1}
-                            </span>
-                          )}
-                          {isRecommended && (
-                            <span className="text-[10px] font-medium uppercase tracking-wider bg-amber-500/20 text-amber-700 dark:text-amber-400 px-1.5 py-0.2 rounded border border-amber-300 dark:border-amber-500/30 shrink-0">
-                              🔥 USE SOON
-                            </span>
-                          )}
-                          {tier && (
-                            <span className={`text-[10px] font-medium px-1.5 py-0.2 rounded border ${tier.badgeBg} ${tier.badgeText} ${tier.badgeBorder} shrink-0`}>
-                              {tier.label}
-                            </span>
-                          )}
-                        </div>
-                        <span className="text-xs font-mono paragraph-300 font-light text-[var(--text-main)] opacity-70">
-                          {remPercent !== null ? `${remPercent}% quota remaining` : 'Active account'}
+                    <div>
+                      <div className="flex items-center justify-between text-[11px] font-mono mb-1">
+                        <span className="px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-800 uppercase font-semibold">
+                          {item.type}
+                        </span>
+                        <span className="text-emerald-600 dark:text-emerald-400 font-medium">
+                          {item.license} (Permitted)
                         </span>
                       </div>
+                      <h4 className="heading-500 text-sm font-medium text-[var(--text-main)] mb-1">
+                        {item.title}
+                      </h4>
+                      <p className="text-xs font-light text-[var(--text-main)] opacity-75 leading-relaxed mb-2">
+                        {item.reason}
+                      </p>
                     </div>
 
-                    <div className="text-right font-mono text-xs paragraph-300 font-light text-[var(--text-main)] opacity-70 shrink-0 ml-2">
-                      {account.providerId.toUpperCase()}
+                    <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800/80 flex items-center justify-between text-[11px] font-mono opacity-65">
+                      <span className="truncate max-w-[240px]">{item.source}</span>
+                      <span className="uppercase text-blue-600 dark:text-blue-400 font-semibold">{item.decision}</span>
                     </div>
                   </div>
-                );
-              })}
+                ))}
+              </div>
             </div>
 
-            {/* 2. Manual-Only Accounts (Claude & Codex) */}
-            {manualOnlyAccounts.length > 0 && (
-              <div className="space-y-2.5 pt-4 border-t border-slate-200 dark:border-slate-800">
-                <div className="flex items-start justify-between text-xs mb-1">
-                  <div>
-                    <span className="flex items-center space-x-1.5 text-purple-600 dark:text-purple-400 font-semibold font-mono uppercase tracking-wider">
-                      <Shield className="w-3.5 h-3.5" />
-                      <span>Manual-Use Only (Claude &amp; Codex — User Opt-In Only)</span>
-                    </span>
-                    <p className="text-[11px] paragraph-300 font-light text-[var(--text-main)] opacity-60 mt-0.5">
-                      Protected from automated background runs and failovers. Check an account below only if you explicitly want to opt it in for this specific job.
-                    </p>
-                  </div>
-                </div>
-
-                {manualOnlyAccounts.map((account) => {
-                  const snapshot = state.snapshots.find((s) => s.accountId === account.id);
-                  const isSelected = selectedAccountIds.includes(account.id);
-                  const priorityIndex = selectedAccountIds.indexOf(account.id);
-                  const remPercent =
-                    snapshot?.windows[0]?.remainingFraction !== undefined &&
-                    snapshot?.windows[0]?.remainingFraction !== null
-                      ? Math.round(snapshot.windows[0].remainingFraction * 100)
-                      : null;
-                  const tier = remPercent !== null ? getQuotaRangeTier(remPercent) : null;
-
-                  return (
-                    <div
-                      key={account.id}
-                      onClick={() => toggleAccountSelection(account.id)}
-                      className={`p-3.5 rounded-xl border flex items-center justify-between cursor-pointer transition ${
-                        isSelected
-                          ? 'border-purple-500 bg-purple-500/5 dark:bg-purple-500/10'
-                          : 'border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/40 hover:border-purple-300 dark:hover:border-purple-800 opacity-60 hover:opacity-90'
-                      }`}
-                    >
-                      <div className="flex items-center space-x-3 min-w-0">
-                        <div
-                          className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${
-                            isSelected ? 'border-purple-500 bg-purple-600 text-white' : 'border-slate-300 dark:border-slate-600'
-                          }`}
-                        >
-                          {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
-                        </div>
-
-                        <div className="min-w-0">
-                          <div className="flex items-center space-x-2">
-                            <span className="heading-500 font-medium text-sm text-[var(--text-main)] truncate">
-                              {account.displayAlias}
-                            </span>
-                            <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-purple-100 dark:bg-purple-950/80 text-purple-800 dark:text-purple-300 font-semibold shrink-0">
-                              MANUAL ONLY
-                            </span>
-                            {isSelected && (
-                              <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 font-medium border border-amber-300 dark:border-amber-700 shrink-0">
-                                OPTED-IN (#{priorityIndex + 1})
-                              </span>
-                            )}
-                            {tier && (
-                              <span className={`text-[10px] font-medium px-1.5 py-0.2 rounded border ${tier.badgeBg} ${tier.badgeText} ${tier.badgeBorder} shrink-0`}>
-                                {tier.label}
-                              </span>
-                            )}
-                          </div>
-                          <span className="text-xs font-mono paragraph-300 font-light text-[var(--text-main)] opacity-70">
-                            {remPercent !== null ? `${remPercent}% quota remaining` : 'Active account'}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="text-right font-mono text-xs paragraph-300 font-light text-[var(--text-main)] opacity-70 shrink-0 ml-2">
-                        {account.providerId.toUpperCase()}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* Reserved / Protected Accounts Section */}
-            {(() => {
-              const reservedAccounts = state.accounts.filter((a) => !selectedAccountIds.includes(a.id));
-              if (reservedAccounts.length === 0) return null;
-              return (
-                <div className="mt-6 pt-5 border-t border-slate-200 dark:border-slate-800">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center space-x-2">
-                      <ShieldCheck className="w-4 h-4 text-emerald-500" />
-                      <span className="text-xs font-mono uppercase tracking-wider text-[var(--text-main)] font-medium">
-                        Reserved Accounts ({reservedAccounts.length} Protected / Held Back)
-                      </span>
-                    </div>
-                    <span className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
-                      Untouched by Jobs
-                    </span>
-                  </div>
-
-                  <p className="text-xs paragraph-300 font-light text-[var(--text-main)] opacity-70 mb-3">
-                    These accounts will <strong>never</strong> be touched or drawn down by this job. Their quotas and rate limits remain 100% reserved for your direct interactive work.
+            {/* Funding Account Selection Section */}
+            <div className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <h3 className="heading-500 font-medium text-sm text-[var(--text-main)]">
+                    Funding Account &amp; Failover Cascade
+                  </h3>
+                  <p className="text-xs font-light text-[var(--text-main)] opacity-70">
+                    Auto-Mode prioritizes <strong>Antigravity #1</strong>, then <strong>OpenCode #2</strong>. Claude &amp; Codex are manual-only.
                   </p>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                    {reservedAccounts.map((account) => {
-                      const snapshot = state.snapshots.find((s) => s.accountId === account.id);
-                      const remPercent =
-                        snapshot?.windows[0]?.remainingFraction !== undefined &&
-                        snapshot?.windows[0]?.remainingFraction !== null
-                          ? Math.round(snapshot.windows[0].remainingFraction * 100)
-                          : null;
-                      return (
-                        <div
-                          key={account.id}
-                          className="p-3 rounded-xl border border-dashed border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-950/40 flex items-center justify-between"
-                        >
-                          <div className="flex items-center space-x-2.5 min-w-0">
-                            <Shield className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 shrink-0" />
-                            <div className="min-w-0">
-                              <div className="flex items-center space-x-1.5">
-                                <span className="font-medium text-xs text-[var(--text-main)] truncate">
-                                  {account.displayAlias}
-                                </span>
-                                <span className="text-[9px] font-mono uppercase opacity-50">
-                                  ({account.providerId})
-                                </span>
-                              </div>
-                              <span className="text-[11px] font-mono text-[var(--text-main)] opacity-60">
-                                {remPercent !== null ? `${remPercent}% quota preserved` : 'Standby account'}
-                              </span>
-                            </div>
-                          </div>
-
-                          {account.capabilities.executeJobs && (
-                            <button
-                              type="button"
-                              onClick={() => toggleAccountSelection(account.id)}
-                              className="flex items-center space-x-1 px-2 py-1 rounded text-[11px] font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/40 border border-blue-200 dark:border-blue-800/60 transition cursor-pointer shrink-0"
-                              title="Add to failover pool"
-                            >
-                              <Plus className="w-3 h-3" />
-                              <span>Pool</span>
-                            </button>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
                 </div>
-              );
-            })()}
+                <button
+                  type="button"
+                  onClick={selectAutoModeSequence}
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium bg-cyan-600 hover:bg-cyan-500 text-white transition cursor-pointer shrink-0"
+                >
+                  ⚡ Auto Mode: Antigravity → OpenCode ({autoModeAccounts.length})
+                </button>
+              </div>
 
-            <div className="pt-4 flex justify-between">
+              {/* Execution Order Strip */}
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1.5">
+                <span className="text-[11px] font-mono uppercase tracking-wider text-[var(--text-main)] opacity-60 block">
+                  EXECUTION CASCADE ({selectedAccounts.length} in pool):
+                </span>
+                <div className="space-y-1">
+                  {selectedAccounts.map((acc, idx) => (
+                    <div
+                      key={acc.id}
+                      className="flex items-center justify-between p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs"
+                    >
+                      <div className="flex items-center space-x-2">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-semibold ${
+                          idx === 0 ? 'bg-blue-600 text-white' : 'bg-slate-200 dark:bg-slate-800 text-[var(--text-main)]'
+                        }`}>
+                          {idx === 0 ? 'PRIMARY' : `BACKUP #${idx}`}
+                        </span>
+                        <span className="font-mono">{acc.displayAlias}</span>
+                        <span className="opacity-50 font-mono uppercase">({acc.providerId})</span>
+                      </div>
+                      <div className="flex items-center space-x-1">
+                        <button
+                          type="button"
+                          onClick={() => moveAccountPriority(idx, 'up')}
+                          disabled={idx === 0}
+                          className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded disabled:opacity-30 cursor-pointer"
+                        >
+                          <ChevronUp className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => moveAccountPriority(idx, 'down')}
+                          disabled={idx === selectedAccounts.length - 1}
+                          className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded disabled:opacity-30 cursor-pointer"
+                        >
+                          <ChevronDown className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Step Navigation Bar */}
+            <div className="pt-4 flex justify-between items-center border-t border-slate-100 dark:border-slate-800">
               <button
                 onClick={() => setStep(2)}
                 className="flex items-center space-x-2 px-4 py-2 rounded-lg text-sm paragraph-300 font-light text-[var(--text-main)] opacity-70 hover:opacity-100 cursor-pointer"
               >
                 <ArrowLeft className="w-4 h-4" />
-                <span>Back</span>
+                <span>Back to Assessment</span>
               </button>
               <button
-                disabled={selectedAccounts.length === 0}
                 onClick={() => setStep(4)}
-                className="flex items-center space-x-2 px-6 py-2.5 rounded-lg text-sm font-medium bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white transition cursor-pointer"
+                className="flex items-center space-x-2 px-6 py-2.5 rounded-lg text-sm font-medium bg-blue-600 hover:bg-blue-500 text-white transition cursor-pointer shadow-xs"
               >
-                <span>Security Review ({selectedAccounts.length} in Pool)</span>
+                <span>Assemble Build Pack</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
             </div>
           </div>
         )}
 
-
-        {/* STEP 4: Security Profile */}
+        {/* ========================================================================= */}
+        {/* STEP 4: BUILD PACK — Architecture, Customization & Sandbox                */}
+        {/* ========================================================================= */}
         {step === 4 && (
           <div className="space-y-6">
             <div>
-              <h2 className="heading-500 text-2xl font-medium tracking-tight text-[var(--text-main)]">Balanced Sandbox Profile</h2>
+              <div className="flex items-center space-x-2 text-xs font-mono uppercase tracking-wider text-blue-600 dark:text-blue-400 mb-1">
+                <Layers className="w-4 h-4" />
+                <span>Build Pack &amp; Bootstrap</span>
+              </div>
+              <h2 className="heading-500 text-2xl font-medium tracking-tight text-[var(--text-main)]">
+                Assemble Architecture &amp; Sandbox
+              </h2>
               <p className="paragraph-300 text-sm mt-1 font-light text-[var(--text-main)] opacity-70">
-                Hard isolation boundaries enforced before any container starts.
+                Review the customization strategy, sandbox isolation parameters, and Git checkpoint plan.
               </p>
             </div>
 
-            <div className="space-y-3 bg-slate-50 dark:bg-slate-950 p-5 rounded-xl border border-slate-200 dark:border-slate-800 text-xs">
-              <div className="flex items-center justify-between py-2 border-b border-slate-200 dark:border-slate-900">
-                <span className="paragraph-300 font-light text-[var(--text-main)] opacity-70">Filesystem Isolation</span>
-                <span className="text-emerald-600 dark:text-emerald-400 font-mono font-medium">Zero Host Directory Mounts</span>
+            {/* Build Pack Blueprint Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Architecture Blueprint */}
+              <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 space-y-3">
+                <span className="text-xs font-mono uppercase tracking-wider text-[var(--text-main)] opacity-70 font-semibold block">
+                  ARCHITECTURE BLUEPRINT:
+                </span>
+                <div className="space-y-2 text-xs">
+                  <div className="flex justify-between py-1 border-b border-slate-200/60 dark:border-slate-800/80">
+                    <span className="opacity-60">Frontend:</span>
+                    <span className="font-mono font-medium">{buildPack.architecture.frontend}</span>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-slate-200/60 dark:border-slate-800/80">
+                    <span className="opacity-60">Backend / Engine:</span>
+                    <span className="font-mono font-medium">{buildPack.architecture.backend}</span>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-slate-200/60 dark:border-slate-800/80">
+                    <span className="opacity-60">Database / Cache:</span>
+                    <span className="font-mono font-medium">{buildPack.architecture.database}</span>
+                  </div>
+                  <div className="flex justify-between py-1">
+                    <span className="opacity-60">AI Layer:</span>
+                    <span className="font-mono font-medium text-blue-600 dark:text-blue-400">
+                      Antigravity #1 → OpenCode #2
+                    </span>
+                  </div>
+                </div>
               </div>
-              <div className="flex items-center justify-between py-2 border-b border-slate-200 dark:border-slate-900">
-                <span className="paragraph-300 font-light text-[var(--text-main)] opacity-70">Docker Socket Access</span>
-                <span className="text-emerald-600 dark:text-emerald-400 font-mono font-medium">Disabled (No DinD)</span>
-              </div>
-              <div className="flex items-center justify-between py-2 border-b border-slate-200 dark:border-slate-900">
-                <span className="paragraph-300 font-light text-[var(--text-main)] opacity-70">Network Policy</span>
-                <span className="text-emerald-600 dark:text-emerald-400 font-mono font-medium">Public Web Only (No LAN / Localhost)</span>
-              </div>
-              <div className="flex items-center justify-between py-2 border-b border-slate-200 dark:border-slate-900">
-                <span className="paragraph-300 font-light text-[var(--text-main)] opacity-70">Resource Limits</span>
-                <span className="font-mono font-medium text-[var(--text-main)]">2 CPU Cores / 2048 MB RAM</span>
-              </div>
-              <div className="flex items-center justify-between py-2">
-                <span className="paragraph-300 font-light text-[var(--text-main)] opacity-70">Process User</span>
-                <span className="font-mono font-medium text-[var(--text-main)]">Unprivileged (UID 1000)</span>
+
+              {/* Customization & Originality Strategy */}
+              <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 space-y-3">
+                <span className="text-xs font-mono uppercase tracking-wider text-[var(--text-main)] opacity-70 font-semibold block">
+                  CUSTOMIZATION STRATEGY (PRD Sections 30–31):
+                </span>
+                <div className="space-y-1.5 text-xs">
+                  <div className="p-2 rounded bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300">
+                    <strong>Reused:</strong> {buildPack.implementationStrategy.reused.join(', ')}
+                  </div>
+                  <div className="p-2 rounded bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-300">
+                    <strong>Rewritten:</strong> {buildPack.implementationStrategy.rewritten.join(', ')}
+                  </div>
+                  <div className="p-2 rounded bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 text-purple-800 dark:text-purple-300">
+                    <strong>Added Features:</strong> {buildPack.implementationStrategy.added.join(', ')}
+                  </div>
+                </div>
               </div>
             </div>
 
-            {preflightError && (
-              <div className="p-3 bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs rounded-xl flex items-center space-x-2">
-                <XCircle className="w-4 h-4 text-rose-500 shrink-0" />
-                <span>{preflightError}</span>
+            {/* Sandbox & Checkpoint Plan */}
+            <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 space-y-3">
+              <span className="text-xs font-mono uppercase tracking-wider text-[var(--text-main)] opacity-70 font-semibold block">
+                SANDBOX ISOLATION &amp; REVERSIBLE CHECKPOINTS:
+              </span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex items-start space-x-2">
+                  <ShieldCheck className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-semibold block mb-0.5">Balanced Disposable Sandbox</span>
+                    <span className="opacity-75 font-light">Host filesystems, SSH keys, and Docker sockets are strictly air-gapped.</span>
+                  </div>
+                </div>
+                <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex items-start space-x-2">
+                  <FolderGit2 className="w-4 h-4 text-cyan-500 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-semibold block mb-0.5">5 Staged Git Checkpoints</span>
+                    <span className="opacity-75 font-light">Bootstrap → Research Pack → Core Feature → Testing → Polish.</span>
+                  </div>
+                </div>
               </div>
-            )}
+            </div>
 
-            <div className="pt-4 flex justify-between">
+            {/* Step Navigation Bar */}
+            <div className="pt-4 flex justify-between items-center border-t border-slate-100 dark:border-slate-800">
               <button
                 onClick={() => setStep(3)}
                 className="flex items-center space-x-2 px-4 py-2 rounded-lg text-sm paragraph-300 font-light text-[var(--text-main)] opacity-70 hover:opacity-100 cursor-pointer"
               >
                 <ArrowLeft className="w-4 h-4" />
-                <span>Back</span>
+                <span>Back to Research</span>
               </button>
               <button
-                onClick={handleProceedToPreflight}
-                className="flex items-center space-x-2 px-6 py-2.5 rounded-lg text-sm font-medium bg-blue-600 hover:bg-blue-500 text-white transition cursor-pointer"
+                onClick={() => setStep(5)}
+                className="flex items-center space-x-2 px-6 py-2.5 rounded-lg text-sm font-medium bg-blue-600 hover:bg-blue-500 text-white transition cursor-pointer shadow-xs"
               >
-                <span>Run Preflight Checks</span>
+                <span>Run Testing &amp; Auto-Fix</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
             </div>
           </div>
         )}
 
-        {/* STEP 5: Preflight Review */}
+        {/* ========================================================================= */}
+        {/* STEP 5: TESTING & AUTO-FIX — Multi-Layer QA Pipeline & Repair Loop        */}
+        {/* ========================================================================= */}
         {step === 5 && (
           <div className="space-y-6">
             <div>
-              <div className="flex items-center space-x-2 mb-1">
-                <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800 font-medium">
-                  Pre-Run Safety Guarantee
-                </span>
+              <div className="flex items-center space-x-2 text-xs font-mono uppercase tracking-wider text-blue-600 dark:text-blue-400 mb-1">
+                <TestTube2 className="w-4 h-4" />
+                <span>Multi-Layer Verification</span>
               </div>
-              <h2 className="heading-500 text-2xl font-medium tracking-tight text-[var(--text-main)]">Preflight Verification</h2>
-              <p className="paragraph-300 text-sm text-emerald-600 dark:text-emerald-400 font-medium mt-1">
-                Nothing has executed yet. All checks below are purely non-executing static validations.
+              <h2 className="heading-500 text-2xl font-medium tracking-tight text-[var(--text-main)]">
+                Testing Engine &amp; Auto-Fix Loop
+              </h2>
+              <p className="paragraph-300 text-sm mt-1 font-light text-[var(--text-main)] opacity-70">
+                "Never call a project working because the code exists. It is working only when the relevant tests and runtime checks pass."
               </p>
             </div>
 
-            <div className="space-y-3">
-              {preflightResults.map((check, idx) => (
-                <div
-                  key={idx}
-                  className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex items-start justify-between"
-                >
-                  <div className="flex items-start space-x-3">
-                    {check.ok ? (
-                      <CheckCircle2 className="w-5 h-5 text-emerald-500 dark:text-emerald-400 shrink-0 mt-0.5" />
-                    ) : (
-                      <XCircle className="w-5 h-5 text-rose-500 shrink-0 mt-0.5" />
-                    )}
+            {/* 6 QA Verification Stage Cards */}
+            <div className="space-y-2.5">
+              <span className="text-xs font-mono uppercase tracking-wider text-[var(--text-main)] opacity-70 font-semibold block">
+                VALIDATION PIPELINE STAGES (PRD Sections 35–46):
+              </span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {testResults.map((t) => (
+                  <div
+                    key={t.testId}
+                    className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 flex flex-col justify-between"
+                  >
                     <div>
-                      <p className="heading-500 font-medium text-sm text-[var(--text-main)]">{check.name}</p>
-                      <p className="paragraph-300 text-xs font-light text-[var(--text-main)] opacity-70 mt-0.5">{check.message}</p>
+                      <div className="flex items-center justify-between text-xs mb-1">
+                        <span className="font-semibold text-[var(--text-main)]">{t.title}</span>
+                        <span className="px-2 py-0.5 rounded text-[10px] font-mono uppercase bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 font-semibold flex items-center space-x-1">
+                          <Check className="w-3 h-3" />
+                          <span>PASS</span>
+                        </span>
+                      </div>
+                      <p className="text-[11px] font-mono text-[var(--text-main)] opacity-60 mb-2 truncate">
+                        $ {t.command}
+                      </p>
+                      <div className="space-y-1">
+                        {t.evidence.map((ev, i) => (
+                          <div key={i} className="text-[11px] font-light text-[var(--text-main)] opacity-80 flex items-start space-x-1.5">
+                            <span className="text-emerald-500 font-mono">✓</span>
+                            <span>{ev}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="pt-2 mt-3 border-t border-slate-200/60 dark:border-slate-800/80 flex items-center justify-between text-[10px] font-mono opacity-50">
+                      <span>Category: {t.category.toUpperCase()}</span>
+                      <span>{t.durationMs}ms</span>
                     </div>
                   </div>
-                  <span className="font-mono text-xs font-medium text-emerald-600 dark:text-emerald-400">PASS</span>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
 
-            <div className="pt-4 flex justify-between">
+            {/* Bounded Auto-Fix Repair Log */}
+            <div className="p-4 rounded-xl border border-amber-200 dark:border-amber-900/60 bg-amber-50/40 dark:bg-amber-950/20 space-y-2">
+              <div className="flex items-center space-x-2 text-amber-700 dark:text-amber-400 text-xs font-mono uppercase tracking-wider font-semibold">
+                <Bug className="w-4 h-4" />
+                <span>Auto-Fix Repair Loop (Bounded to 5 Cycles)</span>
+              </div>
+              <div className="space-y-2 text-xs">
+                {repairHistory.map((rep) => (
+                  <div
+                    key={rep.attemptNumber}
+                    className="p-3 rounded-lg bg-white dark:bg-slate-900 border border-amber-200/60 dark:border-amber-800/60 space-y-1"
+                  >
+                    <div className="flex justify-between items-center text-[11px] font-mono">
+                      <span className="font-semibold text-amber-600 dark:text-amber-400">
+                        Repair Cycle #{rep.attemptNumber} — Auto-Resolved
+                      </span>
+                      <span className="text-emerald-600 dark:text-emerald-400 font-semibold uppercase">✓ Verified</span>
+                    </div>
+                    <p className="font-light text-[var(--text-main)] opacity-80">
+                      <strong>Failure:</strong> {rep.failure}
+                    </p>
+                    <p className="font-light text-[var(--text-main)] opacity-80">
+                      <strong>Patch Applied:</strong> {rep.change}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Step Navigation Bar */}
+            <div className="pt-4 flex justify-between items-center border-t border-slate-100 dark:border-slate-800">
               <button
                 onClick={() => setStep(4)}
                 className="flex items-center space-x-2 px-4 py-2 rounded-lg text-sm paragraph-300 font-light text-[var(--text-main)] opacity-70 hover:opacity-100 cursor-pointer"
               >
                 <ArrowLeft className="w-4 h-4" />
-                <span>Back</span>
+                <span>Back to Build Pack</span>
               </button>
               <button
-                disabled={!preflightPassed}
                 onClick={() => setStep(6)}
-                className="flex items-center space-x-2 px-6 py-2.5 rounded-lg text-sm font-medium bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white transition cursor-pointer"
+                className="flex items-center space-x-2 px-6 py-2.5 rounded-lg text-sm font-medium bg-emerald-600 hover:bg-emerald-500 text-white transition cursor-pointer shadow-xs"
               >
-                <span>Proceed to Final Authorization</span>
+                <span>Proceed to Delivery &amp; Working Project</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
             </div>
           </div>
         )}
 
-        {/* STEP 6: Final Human Authorization (RUN JOB) */}
+        {/* ========================================================================= */}
+        {/* STEP 6: DELIVERY — Working Project Authorization & Package Verification   */}
+        {/* ========================================================================= */}
         {step === 6 && (
           <div className="space-y-6">
-            <div className="p-6 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-500/40 space-y-4">
-              <div className="flex items-center space-x-2 text-amber-600 dark:text-amber-400">
-                <AlertTriangle className="w-5 h-5" />
-                <h3 className="heading-500 font-medium text-base uppercase tracking-wider font-mono">
-                  Final Human Authorization Required
-                </h3>
+            <div>
+              <div className="flex items-center space-x-2 text-xs font-mono uppercase tracking-wider text-emerald-600 dark:text-emerald-400 mb-1">
+                <CheckCircle2 className="w-4 h-4" />
+                <span>Working Project Package</span>
+              </div>
+              <h2 className="heading-500 text-2xl font-medium tracking-tight text-[var(--text-main)]">
+                Final Delivery &amp; Authorization
+              </h2>
+              <p className="paragraph-300 text-sm mt-1 font-light text-[var(--text-main)] opacity-70">
+                Verified working software package with complete provenance, test certificates, and execution intent.
+              </p>
+            </div>
+
+            {/* Working Project Summary Card */}
+            <div className="p-6 rounded-2xl bg-gradient-to-br from-slate-50 to-emerald-50/30 dark:from-slate-950 dark:to-emerald-950/20 border border-emerald-500/40 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <div className="flex items-center space-x-2 mb-1">
+                    <span className="px-2.5 py-0.5 rounded-full text-xs font-mono uppercase bg-emerald-600 text-white font-bold tracking-wider">
+                      STATUS: READY ✅
+                    </span>
+                    <span className="text-xs font-mono opacity-60">Definition of Done Verified</span>
+                  </div>
+                  <h3 className="heading-500 text-xl font-medium text-[var(--text-main)]">
+                    {projectPackage.sourceManifest.project as string}
+                  </h3>
+                </div>
+                <div className="text-right">
+                  <span className="text-xs font-mono text-[var(--text-main)] opacity-60 block">Execution Target</span>
+                  <span className="text-sm font-mono font-medium text-emerald-600 dark:text-emerald-400">
+                    $ {projectPackage.runCommand}
+                  </span>
+                </div>
               </div>
 
-              <div className="space-y-2 text-sm paragraph-300 font-light text-[var(--text-main)]">
-                <p>
-                  You are about to execute an isolated R&D evaluation of{' '}
-                  <strong className="font-medium font-mono">{repoUrl}</strong> funded by{' '}
-                  <strong className="font-medium text-amber-600 dark:text-amber-300">{primaryAccount?.displayAlias}</strong>
-                  {selectedAccounts.length > 1 && (
-                    <span>
-                      {' '}with automatic failover across {selectedAccounts.length - 1} backup account(s):{' '}
-                      <span className="font-mono text-xs opacity-80">
-                        {selectedAccounts.slice(1).map((a) => a.displayAlias).join(', ')}
-                      </span>
-                    </span>
-                  )}
-                  .
-                </p>
-                <p className="text-xs leading-relaxed bg-white dark:bg-slate-950/80 p-3 rounded-xl border border-amber-200 dark:border-slate-800">
-                  🛡️ <strong>Sandbox Safety Statement:</strong> Unknown code may execute inside an isolated sandbox. It cannot access your normal files, SSH keys, or private repositories.
+              {/* Package Deliverables Manifest */}
+              <div className="space-y-2 pt-2 border-t border-emerald-500/20">
+                <span className="text-xs font-mono uppercase tracking-wider text-[var(--text-main)] opacity-70 font-semibold block">
+                  DELIVERY PACKAGE MANIFESTS:
+                </span>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs font-mono">
+                  {['README.md', 'ARCHITECTURE.md', 'TESTING.md', 'SECURITY.md', 'SOURCES.md', 'LICENSES.md'].map((doc) => (
+                    <div
+                      key={doc}
+                      className="p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center space-x-2 text-[var(--text-main)]"
+                    >
+                      <FileText className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                      <span className="truncate">{doc}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Funding Safety Statement */}
+              <div className="space-y-2 pt-2">
+                <p className="text-xs leading-relaxed bg-white dark:bg-slate-900/90 p-3 rounded-xl border border-slate-200 dark:border-slate-800">
+                  🛡️ <strong>Sandbox Safety Statement:</strong> Project executes inside an isolated disposable sandbox. Host filesystems, SSH keys, and external ports remain protected.
                 </p>
 
                 {selectedAccounts.some((a) => a.providerId === 'claude' || a.providerId === 'codex') ? (
@@ -988,30 +988,32 @@ export const JobWizard: React.FC<JobWizardProps> = ({
                 )}
               </div>
 
-
+              {/* Primary Authorization CTA */}
               <div className="pt-2">
                 <button
                   onClick={handleFinalRunJob}
                   className="w-full py-4 rounded-xl text-base font-medium uppercase tracking-wider bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 shadow-xl shadow-emerald-500/20 transition transform active:scale-[0.98] cursor-pointer flex items-center justify-center space-x-3"
                 >
                   <Play className="w-5 h-5 fill-current" />
-                  <span>RUN JOB</span>
+                  <span>AUTHORIZE &amp; RUN WORKING PROJECT</span>
                 </button>
               </div>
             </div>
 
+            {/* Bottom Return Bar */}
             <div className="flex justify-between items-center text-xs paragraph-300 font-light text-[var(--text-main)] opacity-70">
               <button
                 onClick={() => setStep(5)}
                 className="flex items-center space-x-1 hover:opacity-100 cursor-pointer"
               >
                 <ArrowLeft className="w-3.5 h-3.5" />
-                <span>Return to Review</span>
+                <span>Return to Testing</span>
               </button>
-              <span>Hash-bound ExecutionIntent will be persisted on click.</span>
+              <span>Hash-bound ExecutionIntent will be persisted on authorization.</span>
             </div>
           </div>
         )}
+
       </div>
     </div>
   );

@@ -4,3 +4,4 @@ export * from './job.js';
 export * from './audit.js';
 export * from './sandbox.js';
 export * from './doctor.js';
+export * from './rdProject.js';
