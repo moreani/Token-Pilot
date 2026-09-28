@@ -1,7 +1,8 @@
-import type {
-  Account,
-  AccountQuotaSnapshot,
-  QuotaSuggestion
+import {
+  type Account,
+  type AccountQuotaSnapshot,
+  type QuotaSuggestion,
+  OPENCODE_MODELS
 } from '@tokenpilot/contracts';
 import type { QuotaDoctorResult, QuotaSource } from './quotaSource.js';
 import { calculateFreshness } from './freshness.js';
@@ -346,6 +347,38 @@ export class MockQuotaSource implements QuotaSource {
         freshness: calculateFreshness(nowIso, now),
         rawSourceVersion: 'aiuse-0.9.4',
         observedAt: nowIso
+      },
+      {
+        accountId: 'opencode-main',
+        providerId: 'opencode',
+        windows: [
+          {
+            id: 'opencode-window-monthly',
+            label: 'Monthly Allowance',
+            usedFraction: 0.22,
+            remainingFraction: 0.78,
+            resetsAt: inHours(336),
+            resetLabel: 'Resets Oct 12 (Monthly)',
+            observedAt: nowIso,
+            source: 'aiuse-mock'
+          },
+          {
+            id: 'opencode-window-session',
+            label: 'Session (5-Hour Rolling)',
+            usedFraction: 0.0,
+            remainingFraction: 1.0,
+            resetsAt: inHours(5),
+            resetLabel: '5-hour rolling session',
+            observedAt: nowIso,
+            source: 'aiuse-mock'
+          }
+        ],
+        recommendation: 'on_pace',
+        recommendationReason: 'Usage is on track for this window.',
+        freshness: calculateFreshness(nowIso, now),
+        rawSourceVersion: 'aiuse-0.9.4',
+        observedAt: nowIso,
+        modelDetails: OPENCODE_MODELS
       }
     ];
   }

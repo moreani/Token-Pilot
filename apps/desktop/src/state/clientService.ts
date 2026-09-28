@@ -1,20 +1,21 @@
-import type {
-  Account,
-  AccountPoolItem,
-  AccountQuotaSnapshot,
-  AuditEvent,
-  ExecutionIntent,
-  FailoverEvent,
-  Job,
-  JobResult,
-  Provider,
-  QuotaSuggestion,
-  SystemDoctorReport,
-  UpdateCheckResult,
-  UpdateApplyResult,
-  UpdateComponentType,
-  ExperienceMemoryStats,
-  LearnedSolution
+import {
+  type Account,
+  type AccountPoolItem,
+  type AccountQuotaSnapshot,
+  type AuditEvent,
+  type ExecutionIntent,
+  type FailoverEvent,
+  type Job,
+  type JobResult,
+  type Provider,
+  type QuotaSuggestion,
+  type SystemDoctorReport,
+  type UpdateCheckResult,
+  type UpdateApplyResult,
+  type UpdateComponentType,
+  type ExperienceMemoryStats,
+  type LearnedSolution,
+  OPENCODE_MODELS
 } from '@tokenpilot/contracts';
 
 export type { Account };
@@ -351,7 +352,7 @@ export class ClientService {
               providerId,
               windows,
               modelGroups: item.model_groups,
-              modelDetails: item.models,
+              modelDetails: item.models || (providerId === 'opencode' ? OPENCODE_MODELS : undefined),
               recommendation: isConserve ? 'conserve' : (isBurn ? 'burn' : 'on_pace'),
               recommendationReason: isConserve
                 ? `Low quota remaining (${Math.round(minRemaining * 100)}% on primary window). Recommendation: conserve.`
@@ -746,6 +747,10 @@ export class ClientService {
       onLog(`[Runner] Cascading failover pool registered with ${pool.length} accounts.`);
     }
     onLog('[Runner] Establishing provider CLI bridge...');
+    if (job.providerId === 'opencode') {
+      const preferredModel = (job.spec as any)?.model || 'DeepSeek V4.1 Flash';
+      onLog(`[OpenCode Engine] Initialized model bridge: ${preferredModel} (Fallback pool: Space Bunny Free [∞], LongCat 2.5 Preview Free [∞], MiMo-V2.6-Flash, Muse Spark 1.3 Contributor)`);
+    }
     this.notify();
     await new Promise((r) => setTimeout(r, 800));
 
@@ -808,6 +813,9 @@ export class ClientService {
 
           onLog(`[Failover] 🔄 Seamlessly transferring active context to backup account: ${nextItem.displayAlias || nextItem.accountId}`);
           onLog(`[Failover] Provider bridge switched to ${nextItem.providerId.toUpperCase()}. Execution resumed without loss of state.`);
+          if (nextItem.providerId === 'opencode') {
+            onLog('[OpenCode Engine] Failover model active: DeepSeek V4.1 Flash with Space Bunny Free (∞ Unlimited Free Tier) standby.');
+          }
           await new Promise((r) => setTimeout(r, 800));
         } else {
           onLog(`[Quota] ✅ Healthy quota available: ${remainingPercent}% remaining for ${currentItem.displayAlias || currentItem.accountId}. Maintaining primary execution.`);

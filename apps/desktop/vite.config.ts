@@ -104,6 +104,76 @@ function realQuotaApiPlugin() {
                       m.label = 'Weekly Allowance';
                     }
                   }
+                  it.models = [
+                    {
+                      id: 'deepseek-v4-1-flash',
+                      displayName: 'DeepSeek V4.1 Flash',
+                      family: 'other',
+                      remainingFraction: 1.0,
+                      percentage: 100,
+                      speedTag: 'Flash',
+                      tier: '26,000 / $60',
+                      isNew: true,
+                      resetTime: 'Monthly'
+                    },
+                    {
+                      id: 'mimo-v2-6-flash',
+                      displayName: 'MiMo-V2.6-Flash',
+                      family: 'other',
+                      remainingFraction: 1.0,
+                      percentage: 100,
+                      speedTag: 'Flash',
+                      tier: '30,100 / $60',
+                      isNew: true,
+                      resetTime: 'Monthly'
+                    },
+                    {
+                      id: 'muse-spark-1-3',
+                      displayName: 'Muse Spark 1.3 Contributor',
+                      family: 'other',
+                      remainingFraction: 1.0,
+                      percentage: 100,
+                      speedTag: 'Contributor',
+                      tier: '45,300 / $60',
+                      isNew: false,
+                      resetTime: 'Monthly'
+                    },
+                    {
+                      id: 'space-bunny-free',
+                      displayName: 'Space Bunny Free',
+                      family: 'other',
+                      remainingFraction: 1.0,
+                      percentage: 100,
+                      speedTag: 'Free / Unlimited',
+                      tier: '∞ unlimited free',
+                      isUnlimited: true,
+                      isNew: true,
+                      resetTime: 'Unlimited'
+                    },
+                    {
+                      id: 'longcat-2-5-preview-free',
+                      displayName: 'LongCat 2.5 Preview Free',
+                      family: 'other',
+                      remainingFraction: 1.0,
+                      percentage: 100,
+                      speedTag: 'Free / Unlimited',
+                      tier: '∞ unlimited free',
+                      isUnlimited: true,
+                      isNew: true,
+                      resetTime: 'Unlimited'
+                    },
+                    {
+                      id: 'glm-4-5-flash',
+                      displayName: 'GLM-4.5-Flash',
+                      family: 'other',
+                      remainingFraction: 1.0,
+                      percentage: 100,
+                      speedTag: 'Flash',
+                      tier: 'High speed',
+                      isNew: true,
+                      resetTime: 'Monthly'
+                    }
+                  ];
                 }
               }
               try {

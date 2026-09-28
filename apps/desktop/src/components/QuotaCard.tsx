@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Clock, Play, Edit3, Check, Flame, ShieldAlert, ChevronDown, ChevronUp, Layers, Info, Mail, AlertCircle, Gift } from 'lucide-react';
-import type { Account, AccountQuotaSnapshot, Provider } from '@tokenpilot/contracts';
+import { Clock, Play, Edit3, Check, Flame, ShieldAlert, ChevronDown, ChevronUp, Layers, Info, Mail, AlertCircle, Gift, Sparkles } from 'lucide-react';
+import { type Account, type AccountQuotaSnapshot, type Provider, OPENCODE_MODELS } from '@tokenpilot/contracts';
 import { getQuotaRangeTier } from '../utils/quotaRanger.js';
 import { useCountdown } from '../hooks/useCountdown.js';
 
@@ -58,10 +58,16 @@ export const QuotaCard: React.FC<QuotaCardProps> = ({
   onUpdateAlias,
   onRefresh
 }) => {
+  const isOpenCode = provider.id === 'opencode';
+  const opencodeModels = snapshot?.modelDetails && snapshot.modelDetails.length > 0
+    ? snapshot.modelDetails
+    : OPENCODE_MODELS;
   const [isEditingAlias, setIsEditingAlias] = useState(false);
   const [aliasInput, setAliasInput] = useState(account.displayAlias);
   const [showModelBreakdown, setShowModelBreakdown] = useState(false);
-  const [selectedModel, setSelectedModel] = useState('gemini-3.8-flash-medium');
+  const [selectedModel, setSelectedModel] = useState(
+    isOpenCode ? 'deepseek-v4-1-flash' : 'gemini-3.8-flash-medium'
+  );
   const [imgError, setImgError] = useState(false);
 
   const primaryWindow = snapshot?.windows[0];
@@ -551,6 +557,111 @@ export const QuotaCard: React.FC<QuotaCardProps> = ({
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {/* OpenCode Models & Unlimited Tiers Breakdown */}
+        {isOpenCode && (
+          <div className="mb-4">
+            <button
+              onClick={() => setShowModelBreakdown(!showModelBreakdown)}
+              className="w-full flex items-center justify-between px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-950/80 hover:bg-slate-100 dark:hover:bg-slate-950 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 text-xs font-light text-[var(--text-main)] transition cursor-pointer"
+            >
+              <div className="flex items-center space-x-2">
+                <Layers className="w-3.5 h-3.5 text-cyan-500 dark:text-cyan-400" />
+                <span className="heading-500 font-medium text-[var(--text-main)]">
+                  {showModelBreakdown ? 'Hide OpenCode Models' : 'View 6 Models & Unlimited Tiers'}
+                </span>
+                <span className="text-[10px] bg-cyan-50 dark:bg-cyan-500/20 text-cyan-600 dark:text-cyan-300 px-1.5 py-0.5 rounded border border-cyan-200 dark:border-cyan-500/30 font-medium">
+                  OpenCode CLI
+                </span>
+              </div>
+              {showModelBreakdown ? (
+                <ChevronUp className="w-4 h-4 text-slate-400" />
+              ) : (
+                <ChevronDown className="w-4 h-4 text-slate-400" />
+              )}
+            </button>
+
+            {showModelBreakdown && (
+              <div className="mt-2.5 p-3 rounded-xl bg-slate-50 dark:bg-stone-900/95 border border-slate-200 dark:border-stone-800 text-[var(--text-main)] shadow-inner space-y-3">
+                <div className="flex items-center justify-between text-[11px] font-medium uppercase tracking-wider text-[var(--text-main)] opacity-70">
+                  <span>Model Catalog</span>
+                  <span className="text-[10px] font-mono lowercase opacity-60">select active model</span>
+                </div>
+
+                <div className="space-y-1.5">
+                  {opencodeModels.map((m: any) => {
+                    const isSelected = selectedModel === m.id;
+                    const isUnlimited = m.isUnlimited;
+
+                    return (
+                      <div
+                        key={m.id}
+                        onClick={() => setSelectedModel(m.id)}
+                        className={`p-2.5 rounded-lg text-xs cursor-pointer transition flex items-center justify-between gap-2 border ${
+                          isSelected
+                            ? 'bg-white dark:bg-stone-800 text-[var(--text-main)] font-medium border-cyan-500 shadow-xs ring-1 ring-cyan-500/20'
+                            : 'bg-slate-100/60 dark:bg-stone-800/40 hover:bg-slate-100 dark:hover:bg-stone-800/70 border-slate-200/70 dark:border-stone-800 text-[var(--text-main)] font-light'
+                        }`}
+                      >
+                        <div className="min-w-0">
+                          <div className="flex items-center space-x-1.5 flex-wrap gap-y-1">
+                            <span className="font-medium text-[var(--text-main)] truncate text-xs">
+                              {m.displayName}
+                            </span>
+                            {m.isNew && (
+                              <span className="inline-flex items-center text-[9px] px-1 py-0.2 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 rounded border border-emerald-500/20 font-medium">
+                                New
+                              </span>
+                            )}
+                            {m.speedTag && (
+                              <span className={`inline-flex items-center text-[9px] px-1 py-0.2 rounded border font-medium ${
+                                isUnlimited
+                                  ? 'bg-cyan-500/15 text-cyan-600 dark:text-cyan-400 border-cyan-500/20'
+                                  : 'bg-slate-200/80 dark:bg-stone-800 text-[var(--text-main)] border-slate-300 dark:border-stone-700'
+                              }`}>
+                                {m.speedTag}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center space-x-2 shrink-0">
+                          {m.tier && (
+                            <span className={`font-mono text-[10px] font-medium px-2 py-0.5 rounded border ${
+                              isUnlimited
+                                ? 'bg-cyan-50 dark:bg-cyan-950/70 text-cyan-700 dark:text-cyan-300 border-cyan-300 dark:border-cyan-800 font-semibold'
+                                : 'bg-white dark:bg-stone-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-stone-700'
+                            }`}>
+                              {m.tier}
+                            </span>
+                          )}
+                          <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${
+                            isSelected
+                              ? 'border-cyan-500 bg-cyan-500 text-white'
+                              : 'border-slate-300 dark:border-stone-600 bg-transparent'
+                          }`}>
+                            {isSelected && <Check className="w-2.5 h-2.5 stroke-[3]" />}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Unlimited Failover Pool Banner */}
+                <div className="p-2.5 rounded-lg bg-cyan-50/60 dark:bg-cyan-950/30 border border-cyan-200/70 dark:border-cyan-900/50 text-[11px]">
+                  <div className="font-medium text-cyan-800 dark:text-cyan-300 mb-0.5 flex items-center space-x-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400 shrink-0" />
+                    <span>Unlimited Free Failover Standby</span>
+                  </div>
+                  <p className="text-[11px] font-light text-cyan-900 dark:text-cyan-200/85 leading-relaxed">
+                    <strong>Space Bunny Free</strong> and <strong>LongCat 2.5 Preview Free</strong> are active as zero-quota fallback engines when paid tokens deplete.
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
