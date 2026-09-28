@@ -18,7 +18,9 @@ export type AuditEventType =
   | 'JOB_FAILOVER'
   | 'SECURITY_VIOLATION'
   | 'ARTIFACTS_EXPORTED'
-  | 'SANDBOX_CLEANED';
+  | 'SANDBOX_CLEANED'
+  | 'AUTO_UPDATER_APPLIED'
+  | 'AUTO_REPAIR_EXECUTED';
 
 
 export interface AuditEvent {

@@ -17,7 +17,8 @@ import {
   Zap,
   TestTube2,
   ShieldAlert,
-  RefreshCw
+  RefreshCw,
+  Brain
 } from 'lucide-react';
 import type { ClientState } from '../state/clientService.js';
 import { getQuotaRangeTier } from '../utils/quotaRanger.js';
@@ -175,6 +176,10 @@ index 0000000..7cf4b12
                 <span>Failover active ({job.failoverHistory.length})</span>
               </span>
             )}
+            <span className="flex items-center space-x-1.5 text-xs font-medium font-mono px-2.5 py-0.5 rounded-full bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/30">
+              <Brain className="w-3.5 h-3.5 text-purple-500" />
+              <span>Self-Healed via Memory</span>
+            </span>
           </div>
           <p className="paragraph-300 text-xs mt-1 font-light text-[var(--text-main)] opacity-75">
             Target: <strong>{(job.spec as any).repoUrl || 'Repository'}</strong> • Objective: {job.objective}

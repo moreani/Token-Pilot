@@ -94,6 +94,8 @@ export const App: React.FC = () => {
         activeJobId={state.activeJobId}
         theme={theme}
         onToggleTheme={toggleTheme}
+        updatesCount={state.updaterStatus?.totalUpdatesAvailable}
+        patternsCount={state.memoryStats?.totalPatternsLearned}
       />
 
       <main className="flex-1 pb-16">

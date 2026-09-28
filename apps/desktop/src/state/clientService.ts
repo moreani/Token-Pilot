@@ -9,12 +9,23 @@ import type {
   JobResult,
   Provider,
   QuotaSuggestion,
-  SystemDoctorReport
+  SystemDoctorReport,
+  UpdateCheckResult,
+  UpdateApplyResult,
+  UpdateComponentType,
+  ExperienceMemoryStats,
+  LearnedSolution
 } from '@tokenpilot/contracts';
 
 export type { Account };
 import { MockQuotaSource } from '@tokenpilot/quota';
 import { RepoLabJobTemplate, McpJobBridge } from '@tokenpilot/jobs';
+import {
+  ExperienceMemoryStore,
+  AutoRepairEngine,
+  AutoUpdater,
+  type RepairResult
+} from '@tokenpilot/core/client';
 
 export interface ClientState {
   providers: Provider[];
@@ -24,6 +35,8 @@ export interface ClientState {
   jobs: Job[];
   activeJobId: string | null;
   auditEvents: AuditEvent[];
+  updaterStatus?: UpdateCheckResult;
+  memoryStats?: ExperienceMemoryStats;
 }
 
 const ALIASES_STORAGE_KEY = 'tokenpilot_custom_account_aliases';
@@ -172,6 +185,9 @@ export class ClientService {
 
   private listeners: Array<() => void> = [];
   private mcpBridge = new McpJobBridge();
+  private memoryStore = new ExperienceMemoryStore();
+  private autoRepairEngine = new AutoRepairEngine(this.memoryStore);
+  private autoUpdater = new AutoUpdater();
 
   constructor() {
     (window as any).__clientService = this;
@@ -180,6 +196,8 @@ export class ClientService {
 
   async init() {
     console.log('[TokenPilot] Initializing client service...');
+    this.state.updaterStatus = this.autoUpdater.getLastCheckResult();
+    this.state.memoryStats = this.memoryStore.getStats();
     await this.loadRealUsage();
   }
 
@@ -811,6 +829,28 @@ export class ClientService {
     });
     await new Promise((r) => setTimeout(r, 800));
 
+    // 4b. Multi-Layer Testing & Autonomous Self-Healing Repair Loop (PRD §48 & §61)
+    onLog('[QA Suite] 🧪 Running multi-layer automated verification (Install, Build, Unit, Integration, AST)...');
+    await new Promise((r) => setTimeout(r, 600));
+
+    const simulatedFlaw = isTest
+      ? "AssertionError: expected mockTokenManager.verifyToken to have been called 1 times, but got 0 (flaky timeout)"
+      : "AST Traversal Warning: Circular reference in AST node traversal loop in astOptimizer";
+
+    const repairResult = await this.autoRepairEngine.runRepairLoop(
+      simulatedFlaw,
+      {
+        jobId: job.id,
+        projectName: job.name,
+        repoUrl: (job.spec as any).repoUrl || 'repository'
+      },
+      onLog
+    );
+
+    this.state.memoryStats = this.memoryStore.getStats();
+    this.notify();
+    await new Promise((r) => setTimeout(r, 600));
+
     // Submit structured diff patch via MCP
     let patch = '';
     let filesChanged = ['tests/autogen/auth_service.test.ts'];
@@ -1085,6 +1125,65 @@ index 0000000..2d4f891
         }
       ]
     };
+  }
+
+  // Auto-Updater Integration
+  async checkForUpdates(): Promise<UpdateCheckResult> {
+    const res = await this.autoUpdater.checkForUpdates();
+    this.state.updaterStatus = res;
+    this.notify();
+    return res;
+  }
+
+  async applyUpdates(
+    components?: UpdateComponentType[],
+    onProgress?: (msg: string) => void
+  ): Promise<UpdateApplyResult> {
+    const res = await this.autoUpdater.applyUpdates(components, onProgress);
+    this.state.updaterStatus = this.autoUpdater.getLastCheckResult();
+    this.logAudit('AUTO_UPDATER_APPLIED', `Applied automated updates to ${res.updatedComponents.join(', ')}`, 'info', {
+      success: res.success,
+      appliedAt: res.appliedAt,
+      updatedComponents: res.updatedComponents,
+      log: res.log
+    });
+    this.notify();
+    return res;
+  }
+
+  getUpdaterStatus(): UpdateCheckResult {
+    return this.autoUpdater.getLastCheckResult();
+  }
+
+  // Experience Memory Bank & Auto-Repair
+  getExperienceMemoryStats(): ExperienceMemoryStats {
+    return this.memoryStore.getStats();
+  }
+
+  getLearnedPatterns(): LearnedSolution[] {
+    return this.memoryStore.getAllPatterns();
+  }
+
+  async triggerDiagnosticAutoRepair(testErrorSnippet?: string): Promise<RepairResult> {
+    const snippet =
+      testErrorSnippet ||
+      "Error: RangeError: Maximum call stack size exceeded in astOptimizer during AST circular traversal loop";
+    const res = await this.autoRepairEngine.runRepairLoop(snippet, {
+      jobId: 'diagnostic-self-heal',
+      projectName: 'Autonomous Self-Healing Test',
+      repoUrl: 'local/diagnostic'
+    });
+    this.state.memoryStats = this.memoryStore.getStats();
+    this.logAudit('AUTO_REPAIR_EXECUTED', `Diagnostic auto-repair completed: ${res.status}`, 'info', {
+      status: res.status,
+      cyclesExecuted: res.cyclesExecuted,
+      tokensSavedTotal: res.tokensSavedTotal,
+      tokensBurnedTotal: res.tokensBurnedTotal,
+      resolvedViaMemory: res.resolvedViaMemory,
+      learnedPatternId: res.learnedPatternId
+    });
+    this.notify();
+    return res;
   }
 
   private logAudit(

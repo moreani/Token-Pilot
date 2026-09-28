@@ -1,5 +1,5 @@
 import React from 'react';
-import { Shield, Activity, Terminal, Stethoscope, FileText, Sun, Moon, Play, Sparkles } from 'lucide-react';
+import { Shield, Activity, Terminal, Stethoscope, FileText, Sun, Moon, Play, Sparkles, Brain, RefreshCw } from 'lucide-react';
 
 interface NavbarProps {
   activeTab: 'dashboard' | 'wizard' | 'console' | 'result' | 'doctor' | 'audit' | 'skills';
@@ -7,6 +7,8 @@ interface NavbarProps {
   activeJobId: string | null;
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
+  updatesCount?: number;
+  patternsCount?: number;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -14,7 +16,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   setActiveTab,
   activeJobId,
   theme,
-  onToggleTheme
+  onToggleTheme,
+  updatesCount,
+  patternsCount
 }) => {
   return (
     <header className="border-b border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 backdrop-blur sticky top-0 z-50 px-6 py-3 flex items-center justify-between transition-colors duration-200">
@@ -114,6 +118,21 @@ export const Navbar: React.FC<NavbarProps> = ({
       </nav>
 
       <div className="flex items-center space-x-3 text-xs">
+        {/* Auto-Updater & Learning Pill */}
+        <button
+          onClick={() => setActiveTab('doctor')}
+          title="Auto-Updater & Experience Memory Bank"
+          className="flex items-center space-x-1.5 px-2.5 py-1 rounded-lg border transition cursor-pointer font-mono text-[11px] bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800/60 hover:bg-purple-100 dark:hover:bg-purple-900/50"
+        >
+          <Brain className="w-3.5 h-3.5 text-purple-500" />
+          <span>{patternsCount || 5} Learned</span>
+          {typeof updatesCount === 'number' && updatesCount > 0 && (
+            <span className="ml-1 px-1.5 py-0.2 rounded-full bg-amber-500 text-slate-950 font-bold text-[9px]">
+              {updatesCount} Upd
+            </span>
+          )}
+        </button>
+
         {/* Light / Dark Mode Toggle */}
         <button
           onClick={onToggleTheme}

@@ -5,3 +5,5 @@ export * from './audit.js';
 export * from './sandbox.js';
 export * from './doctor.js';
 export * from './rdProject.js';
+export * from './autoUpdate.js';
+export * from './experienceMemory.js';

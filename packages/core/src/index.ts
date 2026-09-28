@@ -5,3 +5,6 @@ export * from './state-machine/jobStateMachine.js';
 export * from './state-machine/rdStateMachine.js';
 export * from './events/auditLogger.js';
 export * from './service/tokenPilotService.js';
+export * from './memory/experienceStore.js';
+export * from './repair/autoRepairEngine.js';
+export * from './updater/autoUpdater.js';
