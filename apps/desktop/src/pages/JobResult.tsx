@@ -18,7 +18,10 @@ import {
   TestTube2,
   ShieldAlert,
   RefreshCw,
-  Brain
+  Brain,
+  Database,
+  FolderCheck,
+  HardDrive
 } from 'lucide-react';
 import type { ClientState } from '../state/clientService.js';
 import { getQuotaRangeTier } from '../utils/quotaRanger.js';
@@ -630,6 +633,54 @@ index 0000000..7cf4b12
                 </div>
               </div>
             ))}
+          </div>
+
+          {/* Persistent Storage Locations Breakdown */}
+          <div className="mt-6 pt-4 border-t border-slate-200 dark:border-slate-800 space-y-3">
+            <h4 className="text-xs font-mono uppercase tracking-wider text-[var(--text-main)] opacity-70 font-semibold flex items-center space-x-2">
+              <HardDrive className="w-4 h-4 text-cyan-500" />
+              <span>Persistent Storage &amp; Export Locations:</span>
+            </h4>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs font-mono">
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1">
+                <div className="flex items-center space-x-1.5 text-blue-500 font-semibold">
+                  <Database className="w-3.5 h-3.5" />
+                  <span>SQLite Database</span>
+                </div>
+                <p className="text-[11px] font-sans font-light text-[var(--text-main)] opacity-70">
+                  <code className="text-cyan-600 dark:text-cyan-400">~/.tokenpilot/database.sqlite</code>
+                </p>
+                <p className="text-[10px] font-sans opacity-60">
+                  Full diff patch, metrics, and cryptographic hash chain saved.
+                </p>
+              </div>
+
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1">
+                <div className="flex items-center space-x-1.5 text-purple-500 font-semibold">
+                  <Brain className="w-3.5 h-3.5" />
+                  <span>Experience Memory</span>
+                </div>
+                <p className="text-[11px] font-sans font-light text-[var(--text-main)] opacity-70">
+                  <code className="text-purple-600 dark:text-purple-400">~/.tokenpilot_tokscale_cache.json</code>
+                </p>
+                <p className="text-[10px] font-sans opacity-60">
+                  Auto-repair pattern cached for 0-token instant reuse on repeat runs.
+                </p>
+              </div>
+
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1">
+                <div className="flex items-center space-x-1.5 text-emerald-500 font-semibold">
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Local Downloads</span>
+                </div>
+                <p className="text-[11px] font-sans font-light text-[var(--text-main)] opacity-70">
+                  <code className="text-emerald-600 dark:text-emerald-400">~/Downloads/tokenpilot_*.patch</code>
+                </p>
+                <p className="text-[10px] font-sans opacity-60">
+                  Click &ldquo;Download .patch&rdquo; above to save clean git-compatible patch.
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       )}

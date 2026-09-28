@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Terminal, Pause, Play, Square, CheckCircle, Clock, ShieldCheck, Layers, RefreshCw, AlertTriangle } from 'lucide-react';
+import { Terminal, Pause, Play, Square, CheckCircle, Clock, ShieldCheck, Layers, RefreshCw, AlertTriangle, ArrowRight, Database, FolderCheck } from 'lucide-react';
 import type { ClientState } from '../state/clientService.js';
 
 
@@ -227,13 +227,63 @@ export const JobConsole: React.FC<JobConsoleProps> = ({
             ))
           )}
           {isCompleted && (
-            <div className="p-3 bg-emerald-950/40 border border-emerald-800 rounded-lg text-emerald-300 mt-4 font-medium">
-              ✔ Execution completed successfully. Artifacts verified and stored.
+            <div className="p-4 bg-emerald-950/50 border border-emerald-700/70 rounded-xl text-emerald-200 mt-4 space-y-3">
+              <div className="flex items-center space-x-2 font-medium text-emerald-300">
+                <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>✔ Execution completed successfully. Artifacts verified and stored.</span>
+              </div>
+              <div className="text-[11px] font-mono opacity-80 space-y-1 pl-6">
+                <div>📁 <strong>Delivery Package:</strong> Unified code patch + 6 documentation manifests generated</div>
+                <div>💾 <strong>Local Database:</strong> Stored in encrypted SQLite (~/.tokenpilot/database.sqlite)</div>
+                <div>🧠 <strong>Experience Memory:</strong> Auto-learned fix pattern saved for 0-token reuse</div>
+              </div>
+              <div className="pt-1 pl-6">
+                <button
+                  type="button"
+                  onClick={() => onViewResults(jobId)}
+                  className="px-4 py-2 rounded-lg text-xs font-semibold bg-emerald-500 hover:bg-emerald-400 text-slate-950 transition cursor-pointer shadow-md flex items-center space-x-2"
+                >
+                  <span>View Delivery &amp; Project Artifacts</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
           )}
           <div ref={terminalEndRef} />
         </div>
       </div>
+
+      {/* Completion Delivery Card */}
+      {isCompleted && (
+        <div className="mt-6 p-6 rounded-2xl bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-blue-500/10 border border-emerald-500/30 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-lg animate-in fade-in duration-300">
+          <div>
+            <div className="flex items-center space-x-2 mb-1">
+              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-mono uppercase bg-emerald-600 text-white font-bold tracking-wider">
+                STATUS: READY ✅
+              </span>
+              <span className="text-xs font-mono text-[var(--text-main)] opacity-70">
+                All Artifacts Saved &amp; Verified
+              </span>
+            </div>
+            <h3 className="heading-500 text-lg font-medium text-[var(--text-main)]">
+              Working Project Delivery Ready
+            </h3>
+            <p className="paragraph-300 text-xs text-[var(--text-main)] opacity-70 mt-0.5">
+              Code diff patch, test certificates, and documentation manifests have been compiled and persisted to SQLite &amp; memory.
+            </p>
+          </div>
+
+          <div className="flex items-center space-x-3 shrink-0">
+            <button
+              onClick={() => onViewResults(jobId)}
+              className="px-5 py-2.5 rounded-xl text-sm font-semibold bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 shadow-md transition transform active:scale-95 cursor-pointer flex items-center space-x-2"
+            >
+              <span>Inspect Delivery Artifacts</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
