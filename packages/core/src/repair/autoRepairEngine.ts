@@ -10,6 +10,9 @@ export interface RepairJobContext {
   projectName: string;
   repoUrl: string;
   maxCycles?: number; // PRD §48 default 5
+  providerId?: string;
+  activeModelId?: string;
+  forceEscalationTest?: boolean;
 }
 
 export interface RepairResult {
@@ -121,6 +124,17 @@ export class AutoRepairEngine {
     let totalTokensBurned = 0;
 
     for (let cycle = 1; cycle <= maxCycles; cycle++) {
+      if (context.providerId === 'opencode') {
+        if (cycle === 1) {
+          onProgress?.(`[Model Engine] Active model: ${context.activeModelId || 'DeepSeek V4.1 Flash'}`);
+        } else {
+          const escalationModel = cycle === 2 ? 'DeepSeek V4 Pro' : (cycle === 3 ? 'Kimi K2.7 Code' : 'Qwen3.8 Max / GPT 6 Luna');
+          onProgress?.(
+            `[OpenCode Escalation] ⚠️ Primary model (${context.activeModelId || 'DeepSeek V4.1 Flash'}) was unable to resolve task in Cycle ${cycle - 1}. Escalating to ${escalationModel} (opencode.ai/go power tier)...`
+          );
+        }
+      }
+
       onProgress?.(`[Auto-Repair] Cycle ${cycle}/${maxCycles}: Analyzing AST and trace evidence...`);
       const cycleTokens = 1200 + cycle * 400;
       totalTokensBurned += cycleTokens;
@@ -136,8 +150,8 @@ export class AutoRepairEngine {
       onProgress?.(`[Auto-Repair] Cycle ${cycle}/${maxCycles}: Synthesized patch. Applying to sandbox...`);
       onProgress?.(`[Auto-Repair] Cycle ${cycle}/${maxCycles}: Running targeted test suite...`);
 
-      // In the simulated engine, cycle 1 or 2 resolves the problem
-      const isPass = cycle >= 1; // succeeds on first diagnostic iteration
+      // If forceEscalationTest is requested, cycle 1 fails to demonstrate escalation
+      const isPass = context.forceEscalationTest ? cycle >= 2 : cycle >= 1;
 
       const record: RepairCycleRecord = {
         cycleIndex: cycle,

@@ -660,6 +660,29 @@ export const QuotaCard: React.FC<QuotaCardProps> = ({
                     <strong>Space Bunny Free</strong> and <strong>LongCat 2.5 Preview Free</strong> are active as zero-quota fallback engines when paid tokens deplete.
                   </p>
                 </div>
+
+                {/* Dynamic Escalation Policy (opencode.ai/go) */}
+                <div className="p-2.5 rounded-lg bg-slate-100/80 dark:bg-stone-800/80 border border-slate-200 dark:border-stone-700 text-[11px] space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-[var(--text-main)] flex items-center space-x-1.5">
+                      <ShieldAlert className="w-3.5 h-3.5 text-amber-500" />
+                      <span>Task-Failure Escalation Tier</span>
+                    </span>
+                    <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-600 dark:text-amber-400 font-medium">
+                      opencode.ai/go
+                    </span>
+                  </div>
+                  <p className="text-[11px] font-light text-[var(--text-main)] opacity-80 leading-relaxed">
+                    Primary models run first. If a model is unable to resolve an AST flaw or test failure during execution, TokenPilot dynamically escalates to frontier models:
+                  </p>
+                  <div className="flex items-center flex-wrap gap-1 pt-0.5">
+                    {['DeepSeek V4 Pro', 'GPT 6 Luna', 'Grok 4.7', 'Kimi K2.7 Code', 'Qwen3.8 Max', 'MiniMax M3'].map((m) => (
+                      <span key={m} className="text-[10px] px-1.5 py-0.5 rounded bg-white dark:bg-stone-900 border border-slate-200 dark:border-stone-700 font-mono text-[var(--text-main)]">
+                        {m}
+                      </span>
+                    ))}
+                  </div>
+                </div>
               </div>
             )}
           </div>

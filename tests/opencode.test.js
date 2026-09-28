@@ -97,3 +97,61 @@ test('OpenCode: provides exact model catalog with unlimited free tiers and flash
   assert.equal(mimo.speedTag, 'Flash');
 });
 
+test('OpenCode Escalation Policy: triggers advanced models from opencode.ai/go only when primary model fails', async () => {
+  const { OPENCODE_ESCALATION_MODELS } = await import('../packages/contracts/dist/quota.js');
+  const { AutoRepairEngine } = await import('../packages/core/dist/repair/autoRepairEngine.js');
+
+  // Verify escalation catalog from opencode.ai/go exists
+  assert.ok(Array.isArray(OPENCODE_ESCALATION_MODELS));
+  const escalationIds = OPENCODE_ESCALATION_MODELS.map((m) => m.id);
+  assert.ok(escalationIds.includes('deepseek-v4-pro'));
+  assert.ok(escalationIds.includes('gpt-6-luna'));
+  assert.ok(escalationIds.includes('grok-4-7'));
+  assert.ok(escalationIds.includes('kimi-k2-7-code'));
+  assert.ok(escalationIds.includes('qwen3-8-max'));
+
+  // Test AutoRepairEngine escalation behavior:
+  const engine = new AutoRepairEngine();
+  const logs = [];
+
+  // Scenario 1: Primary model succeeds on first cycle -> No escalation
+  await engine.runRepairLoop(
+    'AssertionError: value mismatch',
+    {
+      jobId: 'job-1',
+      projectName: 'TestProject',
+      repoUrl: 'https://github.com/test/repo',
+      providerId: 'opencode',
+      activeModelId: 'deepseek-v4-1-flash',
+      forceEscalationTest: false
+    },
+    (msg) => logs.push(msg)
+  );
+
+  assert.ok(logs.some((l) => l.includes('Active model: deepseek-v4-1-flash')));
+  assert.ok(!logs.some((l) => l.includes('[OpenCode Escalation]')), 'Escalation must NOT trigger when primary model succeeds');
+
+  // Scenario 2: Primary model unable to resolve on Cycle 1 -> Triggers escalation on Cycle 2
+  const escalationLogs = [];
+  const result = await engine.runRepairLoop(
+    'TypeError: cannot compile AST undefined symbol (novel complex regression)',
+    {
+      jobId: 'job-2',
+      projectName: 'TestProject',
+      repoUrl: 'https://github.com/test/repo',
+      providerId: 'opencode',
+      activeModelId: 'deepseek-v4-1-flash',
+      forceEscalationTest: true
+    },
+    (msg) => escalationLogs.push(msg)
+  );
+
+  assert.equal(result.status, 'RESOLVED');
+  assert.equal(result.cyclesExecuted, 2);
+  assert.ok(
+    escalationLogs.some((l) => l.includes('[OpenCode Escalation]') && l.includes('DeepSeek V4 Pro')),
+    'Escalation MUST trigger to power model when primary model cannot complete task'
+  );
+});
+
+

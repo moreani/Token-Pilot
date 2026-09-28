@@ -137,3 +137,91 @@ export const OPENCODE_MODELS: ModelQuotaDetail[] = [
   }
 ];
 
+export const OPENCODE_ESCALATION_MODELS: ModelQuotaDetail[] = [
+  {
+    id: 'deepseek-v4-pro',
+    displayName: 'DeepSeek V4 Pro',
+    family: 'other',
+    remainingFraction: 1.0,
+    percentage: 100,
+    speedTag: 'Pro',
+    tier: '1,050 / $60',
+    isNew: false,
+    resetTime: 'Monthly'
+  },
+  {
+    id: 'gpt-6-luna',
+    displayName: 'GPT 6 Luna',
+    family: 'other',
+    remainingFraction: 1.0,
+    percentage: 100,
+    speedTag: 'Frontier',
+    tier: '4,230 / $15',
+    isNew: true,
+    resetTime: 'Monthly'
+  },
+  {
+    id: 'grok-4-7',
+    displayName: 'Grok 4.7',
+    family: 'other',
+    remainingFraction: 1.0,
+    percentage: 100,
+    speedTag: 'Frontier',
+    tier: '169 / $15',
+    isNew: true,
+    resetTime: 'Monthly'
+  },
+  {
+    id: 'kimi-k2-7-code',
+    displayName: 'Kimi K2.7 Code',
+    family: 'other',
+    remainingFraction: 1.0,
+    percentage: 100,
+    speedTag: 'Code Specialist',
+    tier: '1,350 / $60',
+    isNew: false,
+    resetTime: 'Monthly'
+  },
+  {
+    id: 'kimi-k3',
+    displayName: 'Kimi K3',
+    family: 'other',
+    remainingFraction: 1.0,
+    percentage: 100,
+    speedTag: 'Deep Reasoning',
+    tier: '110 / $15',
+    isNew: false,
+    resetTime: 'Monthly'
+  },
+  {
+    id: 'qwen3-8-max',
+    displayName: 'Qwen3.8 Max',
+    family: 'other',
+    remainingFraction: 1.0,
+    percentage: 100,
+    speedTag: 'Max Reasoning',
+    tier: '160 / $15',
+    isNew: false,
+    resetTime: 'Monthly'
+  },
+  {
+    id: 'minimax-m3',
+    displayName: 'MiniMax M3',
+    family: 'other',
+    remainingFraction: 1.0,
+    percentage: 100,
+    speedTag: 'Tool Specialist',
+    tier: '3,200 / $60',
+    isNew: false,
+    resetTime: 'Monthly'
+  }
+];
+
+export interface OpenCodeEscalationPolicy {
+  primaryModelId: string;
+  escalationModelId: string;
+  triggerReason: string;
+  activatedAt?: string;
+}
+
+

@@ -864,7 +864,9 @@ export class ClientService {
       {
         jobId: job.id,
         projectName: job.name,
-        repoUrl: (job.spec as any).repoUrl || 'repository'
+        repoUrl: (job.spec as any).repoUrl || 'repository',
+        providerId: job.providerId || undefined,
+        activeModelId: (job.spec as any)?.model || 'DeepSeek V4.1 Flash'
       },
       onLog
     );
